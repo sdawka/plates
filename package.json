@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply plates --local",
-    "db:migrate:remote": "wrangler d1 migrations apply plates --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply plates --remote",
+    "local:e2e": "node scripts/run.mjs scripts/local-e2e.ts",
+    "local:mock": "node scripts/run.mjs scripts/serve-mock.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",

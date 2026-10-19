@@ -28,7 +28,9 @@ export const INTENT_TOOL: Tool = {
       },
     },
     required: ["action", "ask_id", "note", "deadline", "confidence", "delivers_ask_id"],
+    additionalProperties: false,
   },
+  strict: true,
 };
 
 export const INTENT_SYSTEM = `You read one reply in a Slack thread that contains tracked asks ("things one person wants from another") and decide whether the reply performs an action on one of them.

@@ -193,6 +193,17 @@ export async function gatherForTag(
   return buildContext(env, raw, [taggerId]);
 }
 
+/**
+ * A /plates command: the thread holds only the bot's own "via /plates" post, which buildContext drops. The command
+ * text is the ask, so add it as the tagger's message: its mentions become participants and its ts is citable.
+ */
+export async function withCommandMessage(env: Env, ctx: ConversationContext, ts: string, taggerId: string, text: string): Promise<ConversationContext> {
+  if (ctx.messages.some((m) => m.ts === ts)) return ctx;
+  const added = await buildContext(env, singleMessage(ts, taggerId, text), [taggerId]);
+  const participants = new Map([...ctx.participants, ...added.participants]);
+  return { messages: [...ctx.messages, ...added.messages].sort((a, b) => Number(a.ts) - Number(b.ts)), participants };
+}
+
 /** Context built from the one captured message, when nothing else can be read. */
 export function singleMessage(ts: string, userId: string, text: string): SlackMessage[] {
   return [{ ts, user: userId, text }];

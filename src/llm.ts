@@ -1,5 +1,10 @@
 // Shared Claude tool call with stop_reason handling.
 // https://platform.claude.com/docs/en/docs/build-with-claude/handling-stop-reasons
+//
+// tool_choice stays "auto": Opus 5.5, Sonnet 5.5 and Fable 5.1 answer forced tool use with a 400.
+// Tools are strict, so when the model calls one its input matches the schema; the system prompt
+// and a closing instruction ask it to always call the tool.
+// https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use#forcing-tool-use
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "./types";
@@ -25,8 +30,8 @@ export async function callTool(env: Env, call: ToolCall): Promise<unknown> {
       max_tokens: maxTokens,
       system: call.system,
       tools: [call.tool],
-      tool_choice: { type: "tool", name: call.tool.name },
-      messages: [{ role: "user", content: call.prompt }],
+      tool_choice: { type: "auto" },
+      messages: [{ role: "user", content: `${call.prompt}\n\nAnswer by calling the ${call.tool.name} tool.` }],
     });
     if (res.stop_reason === "refusal") throw new LlmPermanentError(`${call.tool.name}: refusal`);
     if (res.stop_reason === "max_tokens") continue; // tool input is incomplete; try the larger budget

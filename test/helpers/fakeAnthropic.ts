@@ -50,10 +50,15 @@ export class FakeAnthropic {
 
   /**
    * Documented (tool use > "Forcing tool use"): Opus 5.5, Sonnet 5.5, Fable 5.1 and Mythos 5.1 answer a 400 to
-   * tool_choice any/tool; Haiku 5.5 accepts it. Off by default so the rest of the suite can exercise the app
-   * logic; e2e/docs.test.ts turns it on to show the app's real model config trips it.
+   * tool_choice any/tool; Haiku 5.5 accepts it.
    */
-  rejectForcedToolOnNewModels = false;
+  rejectForcedToolOnNewModels = true;
+
+  /**
+   * Documented (structured outputs > JSON Schema limitations): strict tools reject minimum/maximum/minLength/
+   * maxLength/maxItems, minItems above 1, and objects without additionalProperties:false with a 400.
+   */
+  rejectUnsupportedStrictSchema = true;
 
   constructor(readonly apiKey = ANTHROPIC_KEY) {}
 
@@ -156,6 +161,10 @@ export class FakeAnthropic {
         const schema = t.input_schema as Obj | undefined;
         if (!schema || schema.type !== "object") throw bad(`tools.${i}.input_schema: type must be "object"`);
         if (t.description !== undefined && typeof t.description !== "string") throw bad(`tools.${i}.description: must be a string`);
+        if (t.strict === true && this.rejectUnsupportedStrictSchema) {
+          const problems = strictSchemaProblems(schema, `tools.${i}.input_schema`);
+          if (problems.length) throw bad(`tools.${i}: strict tool schema not supported:\n${problems.join("\n")}`);
+        }
         return t.name;
       });
       if (new Set(toolNames).size !== toolNames.length) throw bad("tools: tool names must be unique");
@@ -247,6 +256,23 @@ function lastUserText(body: Obj): string {
   if (!last) return "";
   if (typeof last.content === "string") return last.content;
   return ((last.content as Obj[]) ?? []).map((b) => String(b.text ?? "")).join("\n");
+}
+
+const STRICT_BANNED = ["minimum", "maximum", "minLength", "maxLength", "maxItems"];
+
+/** Schema features the structured-outputs docs reject for strict tools. */
+export function strictSchemaProblems(schema: unknown, path: string): string[] {
+  if (!schema || typeof schema !== "object") return [];
+  const s = schema as Obj;
+  const out: string[] = [];
+  for (const k of STRICT_BANNED) if (k in s) out.push(`${path}: "${k}" is not supported`);
+  if (typeof s.minItems === "number" && s.minItems > 1) out.push(`${path}: minItems above 1 is not supported`);
+  if (s.type === "object" && s.additionalProperties !== false) out.push(`${path}: object needs additionalProperties:false`);
+  for (const [k, v] of Object.entries((s.properties as Obj | undefined) ?? {})) out.push(...strictSchemaProblems(v, `${path}.properties.${k}`));
+  if (s.items) out.push(...strictSchemaProblems(s.items, `${path}.items`));
+  for (const k of ["anyOf", "oneOf", "allOf"]) if (Array.isArray(s[k])) (s[k] as unknown[]).forEach((v, i) => out.push(...strictSchemaProblems(v, `${path}.${k}[${i}]`)));
+  for (const k of ["$defs", "definitions"]) for (const [n, v] of Object.entries((s[k] as Obj | undefined) ?? {})) out.push(...strictSchemaProblems(v, `${path}.${k}.${n}`));
+  return out;
 }
 
 /** Small JSON Schema subset check (type, enum, required, properties, items) for scripted tool inputs. */

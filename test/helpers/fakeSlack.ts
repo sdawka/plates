@@ -20,6 +20,8 @@ export interface FakeUser {
   real_name?: string;
   display_name?: string;
   tz?: string;
+  /** Returned in profile.email, as it is for apps with the users:read.email scope. */
+  email?: string;
   is_bot?: boolean;
   deleted?: boolean;
 }
@@ -640,6 +642,7 @@ export class FakeSlack {
           real_name_normalized: real,
           display_name_normalized: u.display_name ?? u.name,
           team: TEAM_ID,
+          ...(u.email ? { email: u.email } : {}),
         },
         is_admin: false,
         is_owner: false,

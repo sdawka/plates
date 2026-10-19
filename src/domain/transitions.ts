@@ -182,6 +182,7 @@ export function transition(ask: AskRow, action: AskAction, actor: Actor, now: nu
       next.closed_at = now;
       next.snoozed_until = null;
       note = action.note ?? null;
+      next.last_note = note;
       if (ownerPlate(ask.state)) dm = { userId: ask.owner_id, template: "ask_withdrawn" };
       break;
 

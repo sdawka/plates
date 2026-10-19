@@ -1,0 +1,50 @@
+# Every secret and var the Worker reads (src/types.ts Env). Copy to .dev.vars for `wrangler dev`.
+# In production set secrets with `wrangler secret put NAME`; the two model names live in wrangler.jsonc "vars".
+# `npm run local:e2e` does not need this file: it passes its own fake values with --var.
+
+# ---------- required secrets ----------
+# Slack app > Basic Information > Signing Secret. Every inbound request is HMAC-verified with it.
+SLACK_SIGNING_SECRET=
+# Slack app > OAuth & Permissions > Bot User OAuth Token (xoxb-...).
+SLACK_BOT_TOKEN=xoxb-
+# console.anthropic.com API key (sk-ant-...). Used for extraction and the thread-reply intent model.
+ANTHROPIC_API_KEY=sk-ant-
+
+# ---------- required vars (defaults are in wrangler.jsonc) ----------
+# Model for extracting asks from a thread.
+# EXTRACT_MODEL=claude-sonnet-5-5
+# Cheap model for clarifying questions and thread-reply intent.
+# FAST_MODEL=claude-haiku-5-5
+
+# ---------- local testing overrides (leave unset in production) ----------
+# Point the Slack Web API / Anthropic API at mock servers (see scripts/mock-servers.ts, `npm run local:mock`).
+# SLACK_API_URL=http://127.0.0.1:8788/slack/api      # default https://slack.com/api
+# ANTHROPIC_BASE_URL=http://127.0.0.1:8788/anthropic # default https://api.anthropic.com
+
+# ---------- optional: reading DMs with a user token (Phase 3). Feature is off when these are missing ----------
+# Slack app > Basic Information > App Credentials.
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+# base64 of 32 random bytes, encrypts stored user tokens:  openssl rand -base64 32
+TOKEN_ENC_KEY=
+# Public https URL of the deployed Worker, used as the OAuth redirect base (https://<worker>/oauth/...).
+PUBLIC_URL=
+
+# ---------- optional: mirror deliverable asks to an issue tracker. TRACKER unset = off ----------
+# "jira" or "linear"
+TRACKER=
+
+# Jira (TRACKER=jira)
+JIRA_BASE_URL=https://yourco.atlassian.net
+JIRA_EMAIL=
+# Jira API token for JIRA_EMAIL (id.atlassian.com > Security > API tokens).
+JIRA_API_TOKEN=
+JIRA_PROJECT_KEY=
+# Defaults to "Task".
+JIRA_ISSUE_TYPE=Task
+
+# Linear (TRACKER=linear)
+LINEAR_API_KEY=
+LINEAR_TEAM_ID=
+# Defaults to https://api.linear.app/graphql.
+# LINEAR_API_URL=

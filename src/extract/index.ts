@@ -21,6 +21,7 @@ import {
   gatherForThread,
   getPermalink,
   singleMessage,
+  withCommandMessage,
   type ConversationContext,
 } from "./context";
 import { callClarify, callExtraction } from "./llm";
@@ -166,6 +167,7 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
   let single = false; // only the captured message could be read
   try {
     ctx = await gatherForTag(env, job.channelId, job.threadTs, job.messageTs, job.taggerId);
+    if (job.origin === "command") ctx = await withCommandMessage(env, ctx, job.messageTs, job.taggerId, job.text);
   } catch (e) {
     if (!(e instanceof ChannelUnreadableError)) throw e;
     if (job.origin !== "shortcut") return [reply(job.channelId, threadTs, INVITE_REPLY)];

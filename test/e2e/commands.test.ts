@@ -25,14 +25,7 @@ describe("/plates help", () => {
 });
 
 describe("/plates <text> with the bot in the channel", () => {
-  // SRC BUG: src/extract/index.ts handleExtract (right after `gatherForTag`, ~line 150). For origin "command" the only
-  // message in the thread is the bot's own "via /plates" post, which buildContext drops, so the model sees an empty
-  // conversation: the tag message (the only citable source_ts) is not in ctx.messages, and the @mentioned owner is not in
-  // ctx.participants, so validateGroups drops every ask and the user always gets "I couldn't find an ask here".
-  // Fix: for origin "command" build the context from the command text, e.g.
-  //   ctx = await buildContext(env, [{ ts: job.messageTs, user: job.taggerId, text: job.text }, ...rawThread], [job.taggerId])
-  // so the text's mentions become participants and job.messageTs is a valid source_ts.
-  it.fails("posts the text as the bot, extracts on the queue and confirms in a new thread", async () => {
+  it("posts the text as the bot, extracts on the queue and confirms in a new thread", async () => {
     const res = await slash("<@UBOB|bob> send me the Q3 deck by Friday");
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("");

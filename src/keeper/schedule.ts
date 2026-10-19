@@ -50,10 +50,12 @@ export function confirmDeadline(req: RequestRow, prefs: UserPrefsRow): TimelineE
 }
 
 export function timeline(s: Snapshot): TimelineEntry[] {
-  const entries: TimelineEntry[] = [{ at: nextDigestAt(s.now, s.prefs), job: { kind: "digest" } }];
+  const entries: TimelineEntry[] = [];
   if (s.nextSnoozeWake != null) entries.push({ at: s.nextSnoozeWake, job: { kind: "wake" } });
+  // Reminders run before the digest so the digest can say how many were held back by the daily cap.
   const reminderAt = nextReminderRun(s.reminderAsks ?? [], s.prefs, s.now);
   if (reminderAt != null) entries.push({ at: reminderAt, job: { kind: "reminders" } });
+  entries.push({ at: nextDigestAt(s.now, s.prefs), job: { kind: "digest" } });
   for (const req of s.pendingRequests) entries.push(confirmDeadline(req, s.prefs));
   return entries;
 }

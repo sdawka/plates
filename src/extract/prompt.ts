@@ -1,4 +1,4 @@
-// Prompt text and the tool schema that forces structured output.
+// Prompt text and the strict tool schema for structured output.
 
 import type { DraftAsk } from "../types";
 import { localDateInfo } from "./dates";
@@ -46,15 +46,20 @@ export const EXTRACT_TOOL = {
                   source_ts: { type: "string", description: "The id (ts) of the message this ask comes from. Must be one of the given ids." },
                 },
                 required: ["title", "type", "size", "urgency", "estimate_reason", "owner_already_committed", "source_ts"],
+                additionalProperties: false,
               },
             },
           },
           required: ["requester_id", "owner_id", "attribution_confidence", "attribution_reason", "asks"],
+          additionalProperties: false,
         },
       },
     },
     required: ["groups"],
+    additionalProperties: false,
   },
+  // Sonnet/Opus 5.5 reject forced tool_choice; strict mode keeps the input schema-valid under "auto".
+  strict: true,
 };
 
 export const EXTRACT_SYSTEM = `You are Plates, a Slack assistant that reads a conversation and works out who is asking whom for what, so each ask can be put on the right person's plate.

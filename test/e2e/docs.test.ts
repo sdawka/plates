@@ -9,17 +9,19 @@ beforeEach(() => void (h = createHarness()));
 afterEach(() => h.dispose());
 
 describe("Anthropic forced tool use (docs: tool use > Forcing tool use)", () => {
-  // SRC BUG: src/extract/llm.ts:16 (and src/intent/llm.ts:14) send tool_choice {type:"tool"} with
-  // EXTRACT_MODEL=claude-sonnet-5-5 (wrangler.jsonc:24), which the API rejects with a 400.
-  // Fix: tool_choice {type:"auto"} + strict:true on the tool + an instruction to call it, or use a model that allows forcing.
-  it.fails("the extraction request with the configured EXTRACT_MODEL is accepted by the API", async () => {
-    h.anthropic.rejectForcedToolOnNewModels = true;
+  it("the extraction request with the configured EXTRACT_MODEL is accepted by the API", async () => {
     const t = await tagThread(h);
     expect(t.card).toBeTruthy();
   });
 
+  it("strict tool schemas used by the app are accepted (no unsupported keywords)", async () => {
+    await tagThread(h);
+    const tools = h.anthropic.requests.flatMap((r) => (r.body.tools as { strict?: boolean }[]) ?? []);
+    expect(tools.length).toBeGreaterThan(0);
+    expect(tools.every((t) => t.strict === true)).toBe(true);
+  });
+
   it("the fake rejects forced tool use on Sonnet 5.5 and allows it on Haiku 5.5", async () => {
-    h.anthropic.rejectForcedToolOnNewModels = true;
     const call = (model: string) =>
       fetch("https://anthropic.test/v1/messages", {
         method: "POST",

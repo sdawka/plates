@@ -356,13 +356,13 @@ export class Harness {
   }
 
   requests(): Record<string, unknown>[] {
-    return this.q("SELECT * FROM requests ORDER BY created_at, id");
+    return this.q("SELECT * FROM requests ORDER BY created_at, rowid");
   }
   asks(): Record<string, unknown>[] {
-    return this.q("SELECT * FROM asks ORDER BY created_at, id");
+    return this.q("SELECT * FROM asks ORDER BY created_at, rowid");
   }
   events(askId?: string): Record<string, unknown>[] {
-    return askId ? this.q("SELECT * FROM ask_events WHERE ask_id = ? ORDER BY at, id", askId) : this.q("SELECT * FROM ask_events ORDER BY at, id");
+    return askId ? this.q("SELECT * FROM ask_events WHERE ask_id = ? ORDER BY at, rowid", askId) : this.q("SELECT * FROM ask_events ORDER BY at, rowid");
   }
 }
 

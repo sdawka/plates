@@ -7,7 +7,7 @@
   "observability": { "enabled": true },
 
   "d1_databases": [
-    { "binding": "DB", "database_name": "plates", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "plates", "database_id": "c4d60bac-5986-4daa-9da6-85ede934ece0", "migrations_dir": "migrations" }
   ],
 
   "queues": {

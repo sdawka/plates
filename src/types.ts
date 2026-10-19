@@ -49,6 +49,7 @@ export type AskState =
 export const OWNER_PLATE_STATES: readonly AskState[] = ["proposed", "in_progress", "accepted", "snoozed"];
 export const REQUESTER_PLATE_STATES: readonly AskState[] = ["delivered", "rejected", "clarify"];
 export const TERMINAL_STATES: readonly AskState[] = ["closed", "withdrawn"];
+export const ASK_STATES: readonly AskState[] = [...OWNER_PLATE_STATES, ...REQUESTER_PLATE_STATES, ...TERMINAL_STATES];
 
 export type AskType = "deliverable" | "acknowledge" | "decision" | "info";
 export type Size = "2-5min" | "lt1h" | "hours" | "days";

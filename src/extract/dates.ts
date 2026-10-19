@@ -62,3 +62,18 @@ export function localDateInfo(now: number, tz: string): { date: string; weekday:
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "long" }).format(new Date(now));
   return { date, weekday };
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The next `count` local calendar dates starting today in `tz`, as YYYY-MM-DD with a label like "Thursday Oct 22". */
+export function upcomingDates(now: number, tz: string, count: number): { date: string; label: string }[] {
+  const [y, m, d] = localDateInfo(now, tz).date.split("-").map(Number) as [number, number, number];
+  return Array.from({ length: count }, (_, i) => {
+    const day = new Date(Date.UTC(y, m - 1, d + i));
+    return {
+      date: day.toISOString().slice(0, 10),
+      label: `${WEEKDAYS[day.getUTCDay()]} ${MONTHS[day.getUTCMonth()]} ${day.getUTCDate()}`,
+    };
+  });
+}

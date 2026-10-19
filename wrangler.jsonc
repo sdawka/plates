@@ -22,7 +22,8 @@
 
   "vars": {
     "EXTRACT_MODEL": "anthropic/claude-sonnet-5.5",
-    "FAST_MODEL": "anthropic/claude-haiku-5.5"
+    "FAST_MODEL": "anthropic/claude-haiku-5.5",
+    "DECIDE_MODEL": "typesafe/jev-1.14"
   }
   // Secrets (wrangler secret put): SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, OPENROUTER_API_KEY
 }

@@ -7,10 +7,9 @@ import { slackCall } from "../slack/api";
 import type { Rendered } from "../slack/blocks";
 import { mention } from "../slack/format";
 import { TransitionError, type AskAction, type AskRow, type Effect, type Env, type ExtractJob } from "../types";
-import { callIntent } from "./llm";
 import { appliedMessage, proposalMessage } from "./messages";
-import { buildIntentPrompt } from "./prompt";
 import { PROPOSAL_TTL_MS, hasPendingDetector, insertProposal, setProposalMessage, sourceHandled } from "./proposals";
+import { decideIntent } from "./questions";
 import { buildCandidates, detectDelivery, validateDecision, type Candidate, type ValidateInput } from "./validate";
 
 type IntentJob = Extract<ExtractJob, { kind: "intent" }>;
@@ -54,11 +53,9 @@ export async function handleIntentJob(env: Env, job: IntentJob): Promise<Effect[
 
   const tz = await speakerTz(env, job.userId);
   const now = Date.now();
-  const raw = await callIntent(
-    env,
-    buildIntentPrompt({ speaker: job.userId, text: job.text, tz, now, candidates, links: job.links, files: job.files }),
-  );
-  const input: ValidateInput = { raw, candidates, speaker: job.userId, text: job.text, tz, now, links: job.links, files: job.files };
+  const shared = { speaker: job.userId, text: job.text, tz, now, candidates, links: job.links, files: job.files };
+  const decision = await decideIntent(env, shared);
+  const input: ValidateInput = { ...shared, decision, botUserId: job.botUserId };
 
   const outcome = validateDecision(input);
   let effects: Effect[] = [];

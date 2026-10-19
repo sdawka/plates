@@ -20,6 +20,7 @@ let fake: FakeD1;
 let env: Env;
 let calls: { method: string; token: string; form: Record<string, string> }[];
 let botDmEmpty = true;
+let isAsk = 0.9; // System One's answer to is_ask
 let info: Record<string, unknown> | null = null;
 let failFor: (method: string, token: string) => string | null;
 
@@ -27,6 +28,7 @@ beforeEach(() => {
   fake = makeDb();
   calls = [];
   botDmEmpty = true;
+  isAsk = 0.9;
   info = null;
   llm.prompts = [];
   llm.result = {
@@ -45,6 +47,7 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init: RequestInit) => {
+      if (url.endsWith("/v1/systemone")) return new Response(JSON.stringify({ answers: { is_ask: { type: "noul", noul: isAsk } } }));
       const method = url.split("/").pop()!;
       const token = String((init.headers as Record<string, string>).authorization).replace("Bearer ", "");
       const form = Object.fromEntries(new URLSearchParams(String(init.body)));
@@ -176,6 +179,31 @@ describe("origins", () => {
     await handleExtractJob(env, job({ channelId: "D_BOT", origin: "dm", sourceUserId: undefined }));
     expect(llm.prompts[0]).toContain("sent you a direct message");
     expect(requests()[0]).toMatchObject({ channel_id: "D_BOT", thread_ts: MSG });
+  });
+  it("dm origin: a message that isn't an ask gets one hint and no extraction", async () => {
+    failFor = () => null;
+    botDmEmpty = false;
+    isAsk = 0.29;
+    const effects = await handleExtractJob(env, job({ channelId: "D_BOT", origin: "dm", sourceUserId: undefined, text: "hi, how are you?" }));
+    expect(effects).toEqual([]);
+    expect(llm.prompts).toHaveLength(0);
+    expect(requests()).toHaveLength(0);
+    const posts = calls.filter((c) => c.method === "chat.postMessage");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.form).toMatchObject({ channel: "D_BOT", text: "I only track asks. Try: `@bob send the Q3 deck by Friday`" });
+  });
+  it("dm origin: is_ask of 0.3 is enough to extract", async () => {
+    failFor = () => null;
+    botDmEmpty = false;
+    isAsk = 0.3;
+    await handleExtractJob(env, job({ channelId: "D_BOT", origin: "dm", sourceUserId: undefined }));
+    expect(llm.prompts).toHaveLength(1);
+  });
+  it("only dm origin is filtered", async () => {
+    failFor = () => null;
+    isAsk = 0;
+    await handleExtractJob(env, job({ channelId: "C1", origin: "command", threadTs: MSG }));
+    expect(llm.prompts).toHaveLength(1);
   });
   it("command origin mentions the command text", async () => {
     failFor = () => null;

@@ -1,9 +1,11 @@
-// Local mock of Slack's Web API and Anthropic's Messages API, one Node HTTP server.
+// Local mock of Slack's Web API, Anthropic's Messages API and System One, one Node HTTP server.
 //
 //   /slack/api/<method>         Slack Web API (form or JSON bodies), backed by the stateful FakeSlack
 //   /slack/response/<path>      response_url target (the fake issues these, see MockSlack)
 //   /anthropic/v1/messages      Messages API, answers come from scripted per-tool FIFO queues
+//   /anthropic/v1/systemone     System One, answers come from scripted per-question-id FIFO queues
 //   POST /control/script        {toolName, input}  queue the next tool_use for that tool
+//   POST /control/systemone     {id, choice?, noul?, p?}  queue the next System One answer for that question id
 //   GET  /control/calls         recorded Slack calls, response_url posts and Anthropic requests
 //   POST /control/reset         wipe all state and re-seed the workspace
 //
@@ -14,6 +16,7 @@
 // request validation behave the same here as there. Run standalone with `npm run local:mock` (scripts/serve-mock.ts).
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { ANTHROPIC_URL, FakeAnthropic } from "../test/helpers/fakeAnthropic.ts";
+import { FakeSystemOne } from "../test/helpers/fakeSystemOne.ts";
 import { API_URL, FakeSlack, RESPONSE_URL_BASE } from "../test/helpers/fakeSlack.ts";
 import { Network } from "../test/helpers/net.ts";
 import type { FakeUser } from "../test/helpers/fakeSlack.ts";
@@ -55,6 +58,7 @@ interface Script {
 export class MockServers {
   slack!: MockSlack;
   anthropic!: FakeAnthropic;
+  systemOne!: FakeSystemOne;
   private net!: Network;
   private scripts: Script[] = [];
   private server: Server | null = null;
@@ -78,12 +82,20 @@ export class MockServers {
     this.scripts.push({ toolName, input });
   }
 
+  /** Queue the next System One answer: a choice (with its probability) or a yes/no probability. */
+  scriptDecision(id: string, a: { choice: string; p?: number } | { noul: number }): void {
+    if ("choice" in a) this.systemOne.queueChoice(id, a.choice, a.p);
+    else this.systemOne.queueNoul(id, a.noul);
+  }
+
   reset(): void {
     this.slack = new MockSlack(this.origin);
     this.anthropic = new FakeAnthropic();
+    this.systemOne = new FakeSystemOne();
     this.net = new Network();
     this.slack.attach(this.net);
     this.anthropic.attach(this.net);
+    this.systemOne.attach(this.net, ANTHROPIC_URL);
     this.scripts = [];
   }
 
@@ -125,6 +137,14 @@ export class MockServers {
       this.feedScript(body.toString("utf8"));
       return this.net.fetch(new Request(`${ANTHROPIC_URL}/v1/messages`, init));
     }
+    if (path === "/anthropic/v1/systemone") {
+      return this.net.fetch(new Request(`${ANTHROPIC_URL}/v1/systemone`, init));
+    }
+    if (path === "/control/systemone" && incoming.method === "POST") {
+      const s = JSON.parse(body.toString("utf8")) as { id: string; choice?: string; noul?: number; p?: number };
+      this.scriptDecision(s.id, s.choice !== undefined ? { choice: s.choice, p: s.p } : { noul: s.noul ?? 0 });
+      return Response.json({ queued: this.systemOne.pending() });
+    }
     if (path === "/control/script" && incoming.method === "POST") {
       const s = JSON.parse(body.toString("utf8")) as Script;
       this.script(s.toolName, s.input);
@@ -135,7 +155,8 @@ export class MockServers {
         slack: this.slack.calls,
         responseUrlPosts: this.slack.responseUrlPosts,
         anthropic: this.anthropic.requests.map(({ model, prompt, toolNames, forcedTool, answeredWith }) => ({ model, prompt, toolNames, forcedTool, answeredWith })),
-        unscripted: this.anthropic.unscripted.length,
+        systemOne: this.systemOne.requests.map(({ model, state, questions, answeredWith }) => ({ model, state, questions: Object.keys(questions), answeredWith })),
+        unscripted: this.anthropic.unscripted.length + this.systemOne.unscripted.length,
       });
     }
     if (path === "/control/reset" && incoming.method === "POST") {

@@ -12,10 +12,11 @@ Tag `@plates` in Slack when you ask someone for something. It reads the thread, 
 | `src/slack/`, `src/index.ts`, `src/effects.ts` | Signature check, events, buttons/modals, message and DM rendering, effect dispatch |
 | `src/home/` | App Home tab (each person's plate) |
 | `src/keeper/` | `PlateKeeper` Durable Object per user: snooze wake-ups, daily digest, reminders, unconfirmed nudge/discard |
-| `src/intent/` | Thread replies → actions (auto-applied with Undo, or "Did you mean"), "looks done?" detector |
+| `src/intent/` | Thread replies → actions via System One choices built from the state machine (auto-applied with Undo, or "Did you mean"), "looks done?" detector |
 | `src/oauth/` | Optional user-token OAuth for reading DMs the bot isn't in |
 | `src/trackers/` | Optional Jira Cloud / Linear mirroring of deliverable asks |
 | `src/llm.ts` | Shared Claude tool call (strict tools, stop_reason handling) |
+| `src/decide.ts` | System One client: typed choice / score / yes-no questions answered with probabilities |
 | `migrations/` | D1 schema |
 
 ## Setup
@@ -57,9 +58,10 @@ Secrets are set with `wrangler secret put`; plain vars go under `vars` in `wrang
 |---|---|---|
 | `SLACK_SIGNING_SECRET` | secret | Verifies requests from Slack. Without it every request is rejected. |
 | `SLACK_BOT_TOKEN` | secret | Bot token for posting and reading. Without it Plates can't talk to Slack. |
-| `OPENROUTER_API_KEY` | secret | Claude via OpenRouter (Anthropic-compatible Messages endpoint) for extraction, intent and clarifying questions. Without it nothing can be extracted. |
+| `OPENROUTER_API_KEY` | secret | One OpenRouter key for everything: Claude (Anthropic-compatible Messages endpoint) for extraction and clarifying questions, and System One (`/v1/systemone`) for thread-reply intent, emoji meaning and the DM filter. Without it nothing can be extracted. |
 | `EXTRACT_MODEL` | var | Model for extraction (default in `wrangler.jsonc`: `anthropic/claude-sonnet-5.5`). |
 | `FAST_MODEL` | var | Model for short clarifying questions (default: `anthropic/claude-haiku-5.5`). |
+| `DECIDE_MODEL` | var | System One model for the typed decisions (default: `typesafe/jev-1.14`). Uses the same `OPENROUTER_API_KEY`. |
 
 ### Optional: reading DMs (user-token OAuth)
 
@@ -83,7 +85,7 @@ Set `TRACKER` to `jira` or `linear`. Unset, tracker sync is off. The matching gr
 
 ### Testing only
 
-`SLACK_API_URL` (default `https://slack.com/api`) and `LLM_BASE_URL` (default `https://openrouter.ai/api`) point Plates at mock servers for local integration runs. Leave them unset in production.
+`SLACK_API_URL` (default `https://slack.com/api`) and `LLM_BASE_URL` (default `https://openrouter.ai/api`, used for both `/v1/messages` and `/v1/systemone`) point Plates at mock servers for local integration runs. Leave them unset in production.
 
 ## Checks
 

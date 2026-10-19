@@ -55,16 +55,81 @@ describe("confirming with reactions", () => {
     expect(h.requests()[0]!.status).toBe("pending_confirmation");
   });
 
-  it("other emoji trigger a clarify question from the fast model", async () => {
-    const t = await tagThread(h, { confidence: 0.5, clarify: "Who is asking: Dana or Tara?" });
-    h.anthropic.queueText("Who is actually asking here, Dana or Tara?");
-    await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "thinking_face");
-    expect(h.queue.sentOfKind("clarify_reaction")).toHaveLength(1);
-    await h.drain();
-    const clarify = h.anthropic.requests.at(-1)!;
-    expect(clarify.model).toBe("anthropic/claude-haiku-5.5");
-    expect(clarify.body.tools).toBeUndefined();
-    expect(threadReplies(t.root.ts).at(-1)).toBe("Who is actually asking here, Dana or Tara?");
+  describe("an unrecognized emoji", () => {
+    const meaning = (choice: string, p?: number) => h.systemOne.queueChoice("meaning", choice, p);
+
+    it("is read by System One: the options are yes, no and unclear, and the state names the emoji, the reactor and the asks", async () => {
+      const t = await tagThread(h);
+      meaning("unclear");
+      h.anthropic.queueText("Anything off?");
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "tada");
+      await h.drain();
+      const req = h.systemOne.requests[0]!;
+      expect(Object.keys((req.questions.meaning as { criteria: object }).criteria)).toEqual(["yes", "no", "unclear"]);
+      expect(req.state).toMatchObject({ emoji: "tada", reacted_by: USERS.dana, confirmation: { requester: USERS.dana, owner: USERS.bob, asks: ["Send the Q3 numbers"] } });
+    });
+
+    it("a yes (p >= 0.8) confirms like a check mark", async () => {
+      const t = await tagThread(h, { titles: ["Send the Q3 numbers", "Ping finance"] });
+      meaning("yes", 0.8);
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "rocket");
+      await h.drain();
+      expect(h.requests()[0]).toMatchObject({ status: "confirmed", confirmed_by: USERS.dana, confirmed_via: "reaction" });
+      expect(h.asks()).toHaveLength(2);
+      expect(h.slack.dmTexts(USERS.bob).join("\n")).toContain("Send the Q3 numbers");
+      expect(h.anthropic.requests.filter((r) => r.model === "anthropic/claude-haiku-5.5")).toHaveLength(0);
+    });
+
+    it("a yes on an unresolved request confirms nothing, as a check mark wouldn't", async () => {
+      const t = await tagThread(h, { requester: null, clarify: "Who's asking?" });
+      meaning("yes", 0.95);
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "rocket");
+      await h.drain();
+      expect(h.asks()).toHaveLength(0);
+      expect(h.requests()[0]!.status).toBe("pending_confirmation");
+    });
+
+    it("a no (p >= 0.8) answers like a cross: what's off", async () => {
+      const t = await tagThread(h);
+      meaning("no", 0.9);
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "thinking_face");
+      await h.drain();
+      expect(threadReplies(t.root.ts).at(-1)).toContain("What's off");
+      expect(h.requests()[0]!.status).toBe("pending_confirmation");
+    });
+
+    it("unclear keeps the clarifying question from the fast model", async () => {
+      const t = await tagThread(h, { confidence: 0.5, clarify: "Who is asking: Dana or Tara?" });
+      meaning("unclear", 0.9);
+      h.anthropic.queueText("Who is actually asking here, Dana or Tara?");
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "thinking_face");
+      expect(h.queue.sentOfKind("clarify_reaction")).toHaveLength(1);
+      await h.drain();
+      const clarify = h.anthropic.requests.at(-1)!;
+      expect(clarify.model).toBe("anthropic/claude-haiku-5.5");
+      expect(clarify.body.tools).toBeUndefined();
+      expect(threadReplies(t.root.ts).at(-1)).toBe("Who is actually asking here, Dana or Tara?");
+      expect(h.requests()[0]!.status).toBe("pending_confirmation");
+    });
+
+    it("a yes or no below 0.8 counts as unclear", async () => {
+      const t = await tagThread(h);
+      meaning("yes", 0.79);
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "eyes");
+      await h.drain();
+      expect(h.requests()[0]!.status).toBe("pending_confirmation");
+      expect(threadReplies(t.root.ts).at(-1)).not.toContain("What's off");
+    });
+
+    it("a failed System One call falls back to the clarifying question", async () => {
+      const t = await tagThread(h);
+      h.systemOne.failNext(402);
+      await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "eyes");
+      const r = await h.drain();
+      expect(r.retried).toHaveLength(0);
+      expect(h.requests()[0]!.status).toBe("pending_confirmation");
+      expect(threadReplies(t.root.ts).at(-1)).toBeTruthy();
+    });
   });
 
   it("an uninvolved person's reaction is ignored", async () => {

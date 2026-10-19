@@ -341,14 +341,15 @@ async function scenarioCoreLoop(): Promise<void> {
 async function scenarioReplyAndUndo(): Promise<void> {
   const c = CAST.B!;
   const t = await tagAndConfirm(c, "Review the contract");
-  mocks.script("decide_action", { action: "accept_now", ask_id: "A1", note: null, deadline: null, confidence: 0.97, delivers_ask_id: null });
+  mocks.scriptDecision("action", { choice: "A1:accept_now", p: 0.97 });
+  mocks.scriptDecision("deadline", { choice: "none" });
   const reply = await say({ user: c.owner, text: "on it, starting now", thread_ts: t.root.ts });
   await waitState(t.askId, "in_progress");
   const ev = await events(t.askId);
   eq("reply applied as accept_now via thread_reply", ev.map((e) => [e.kind, e.via, e.actor_id]), [["accept_now", "thread_reply", c.owner]]);
   const applied = await waitFor("applied line with an Undo button", () => messageWith(CHANNEL, "event:undo"));
   check("Undo line sits in the thread", slack().message(applied.channel, applied.ts).thread_ts === t.root.ts, slack().message(applied.channel, applied.ts));
-  check("intent model was asked once", mocks.anthropic.callsFor("decide_action").length === 1);
+  check("System One was asked once for the action", mocks.systemOne.callsFor("action").length === 1);
   void reply;
 
   await click(c.owner, applied, "event:undo");
@@ -458,7 +459,7 @@ async function main(): Promise<number> {
   await scenario("global: mocks and worker log are clean", async () => {
     const failed = slack().calls.filter((x) => !x.ok);
     check("no failed Slack API calls", failed.length === 0, failed.map((x) => `${x.method}:${x.error}`));
-    check("no unscripted Anthropic calls", mocks.anthropic.unscripted.length === 0, mocks.anthropic.unscripted.map((r) => r.toolNames));
+    check("no unscripted Anthropic or System One calls", mocks.anthropic.unscripted.length + mocks.systemOne.unscripted.length === 0, [...mocks.anthropic.unscripted.map((r) => r.toolNames), ...mocks.systemOne.unscripted.map((r) => Object.keys(r.questions))]);
     const errs = workerLog.filter((l) => /\b(event|request|extract job|effect)\b.*\bfailed\b|\[ERROR\]|Uncaught/i.test(l));
     check("no error lines from the worker", errs.length === 0, errs.slice(0, 5));
   });

@@ -1,8 +1,10 @@
 // Extraction orchestration: turns queue jobs into persisted requests and effects.
 
+import { decide, pMax } from "../decide";
 import { LlmPermanentError } from "../llm";
 import { handleIntentJob } from "../intent";
 import { connectUrl, getUserToken } from "../oauth";
+import { WHATS_OFF_REPLY } from "../slack/actions";
 import { SlackApiError, slackCall } from "../slack/api";
 import { confirmRequest } from "../domain/service";
 import { getRequest, insertRequest, insertRequestStmt, newId, updateRequest } from "../domain/repo";
@@ -137,6 +139,19 @@ function newRequestRow(
 
 // ---------- extract ----------
 
+/** Below this a DM to the bot is not an ask, so nothing is extracted. */
+const IS_ASK_MIN = 0.3;
+const NOT_AN_ASK_REPLY = "I only track asks. Try: `@bob send the Q3 deck by Friday`";
+
+/** Cheap filter before the extraction call: does the DM ask someone to do, deliver, decide or acknowledge something? */
+async function looksLikeAsk(env: Env, text: string): Promise<boolean> {
+  const { is_ask } = await decide(env, {
+    state: { untrusted_chat_message: text.slice(0, 2000) },
+    questions: { is_ask: { type: "noul", instructions: "The message asks someone to do, deliver, decide or acknowledge something." } },
+  });
+  return is_ask.noul >= IS_ASK_MIN;
+}
+
 async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract" }>): Promise<Effect[]> {
   const threadTs = job.threadTs ?? job.messageTs;
 
@@ -158,6 +173,11 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
       });
     }
     return unposted.map((r): Effect => ({ kind: "render_request", requestId: r.id }));
+  }
+
+  if (job.origin === "dm" && !(await looksLikeAsk(env, job.text))) {
+    await slackCall(env, "chat.postMessage", { channel: job.channelId, text: NOT_AN_ASK_REPLY });
+    return [];
   }
 
   let ctx: ConversationContext;
@@ -375,9 +395,55 @@ async function handleCorrect(env: Env, job: Extract<ExtractJob, { kind: "correct
 
 // ---------- clarify_reaction ----------
 
+/** Below this probability an emoji is not taken as a yes or a no. */
+const REACTION_MIN = 0.8;
+
+/** Does an unrecognized emoji on a confirmation mean yes or no? Anything unsure (or a failed call) is "unclear". */
+async function readReaction(env: Env, req: RequestRow, job: Extract<ExtractJob, { kind: "clarify_reaction" }>): Promise<"yes" | "no" | "unclear"> {
+  try {
+    const { meaning } = await decide(env, {
+      state: {
+        emoji: job.reaction,
+        reacted_by: job.userId,
+        confirmation: {
+          requester: req.requester_id,
+          owner: req.owner_id,
+          asks: (JSON.parse(req.draft_json) as DraftAsk[]).map((a) => a.title),
+        },
+      },
+      questions: {
+        meaning: {
+          type: "choice",
+          instructions: "The person reacted to a confirmation ('is this who asked whom for what?') with this emoji. What do they mean?",
+          criteria: {
+            yes: "Approval: the summary is right.",
+            no: "Disapproval: the summary is wrong or something is off.",
+            unclear: "The emoji says nothing about whether the summary is right.",
+          },
+        },
+      },
+    });
+    return (meaning.choice === "yes" || meaning.choice === "no") && pMax(meaning) >= REACTION_MIN ? meaning.choice : "unclear";
+  } catch (e) {
+    console.error("clarify_reaction: decide failed", e);
+    return "unclear";
+  }
+}
+
 async function handleClarifyReaction(env: Env, job: Extract<ExtractJob, { kind: "clarify_reaction" }>): Promise<Effect[]> {
   const req = await getRequest(env.DB, job.requestId);
   if (!req || req.status !== "pending_confirmation") return [];
+
+  const meaning = await readReaction(env, req, job);
+  if (meaning === "yes") {
+    try {
+      return await confirmRequest(env, req.id, job.userId, "reaction");
+    } catch (e) {
+      if (e instanceof TransitionError) return [reply(req.channel_id, req.thread_ts, e.userMessage)];
+      throw e;
+    }
+  }
+  if (meaning === "no") return [reply(req.channel_id, req.thread_ts, WHATS_OFF_REPLY)];
 
   const hasDoubt = !req.requester_id || !req.owner_id || !!req.clarify_question || req.attribution_confidence < 0.8;
   let text = DEFAULT_REACTION_QUESTION;

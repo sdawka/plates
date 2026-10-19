@@ -66,6 +66,9 @@ export const CONFIRM_REACTIONS = {
   no: ["x", "-1", "heavy_multiplication_x", "negative_squared_cross_mark"],
 } as const;
 
+/** Thread reply to a ❌ (or an emoji read as one) on a confirmation. */
+export const WHATS_OFF_REPLY = "What's off — the people, the items, or both? Just reply here.";
+
 // ---------- Phase 2 ----------
 
 /** Undo button on "✓ applied" thread lines. value = eventId. */

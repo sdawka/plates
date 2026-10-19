@@ -6,7 +6,7 @@ import { confirmDiscarded, confirmRequest } from "../domain/service";
 import { publishHome } from "../home/home";
 import { TransitionError, type Effect, type Env, type RequestRow } from "../types";
 import { slackCall } from "./api";
-import { CONFIRM_REACTIONS } from "./actions";
+import { CONFIRM_REACTIONS, WHATS_OFF_REPLY } from "./actions";
 import { buildIntentJob, type MessageFile } from "./parse";
 
 interface MessageLike {
@@ -41,7 +41,7 @@ export interface EventContext {
 
 export async function handleEvent(env: Env, event: SlackEvent, ec: EventContext): Promise<void> {
   switch (event.type) {
-    case "app_mention": return onMention(env, event);
+    case "app_mention": return onMention(env, event, ec);
     case "message": return onMessage(env, event, ec);
     case "reaction_added": return onReaction(env, event);
     case "app_home_opened":
@@ -52,10 +52,10 @@ export async function handleEvent(env: Env, event: SlackEvent, ec: EventContext)
 
 // ---------- app_mention ----------
 
-async function onMention(env: Env, e: MessageLike): Promise<void> {
+async function onMention(env: Env, e: MessageLike, ec: EventContext): Promise<void> {
   if (!e.user || e.bot_id) return;
   // A mention inside a thread that already has a request is a correction or a follow-up, not a new capture.
-  if (e.thread_ts && e.thread_ts !== e.ts && (await routeThreadReply(env, e, e.user, e.thread_ts))) return;
+  if (e.thread_ts && e.thread_ts !== e.ts && (await routeThreadReply(env, e, e.user, e.thread_ts, ec))) return;
   await env.EXTRACT_QUEUE.send({
     kind: "extract",
     channelId: e.channel,
@@ -98,11 +98,11 @@ async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<vo
   if (!e.thread_ts || e.thread_ts === e.ts) return;
   if (ec.botUserId && e.text?.includes(`<@${ec.botUserId}>`)) return; // arrives as app_mention
 
-  await routeThreadReply(env, e, user, e.thread_ts);
+  await routeThreadReply(env, e, user, e.thread_ts, ec);
 }
 
 /** Routes a reply in a thread to a correction or intent job; false when the thread has no request for this user. */
-async function routeThreadReply(env: Env, e: MessageLike, user: string, threadTs: string): Promise<boolean> {
+async function routeThreadReply(env: Env, e: MessageLike, user: string, threadTs: string, ec: EventContext): Promise<boolean> {
   const requests = await getRequestsInThread(env.DB, e.channel, threadTs);
   const pending = requests.filter((r) => r.status === "pending_confirmation").at(-1);
   if (pending && involved(pending, user)) {
@@ -118,7 +118,10 @@ async function routeThreadReply(env: Env, e: MessageLike, user: string, threadTs
       eligible = asks.some((a) => a.owner_id === user || a.requester_id === user);
     }
     if (eligible) {
-      await env.EXTRACT_QUEUE.send(buildIntentJob({ channel: e.channel, ts: e.ts, thread_ts: threadTs, user, text: e.text, files: e.files }));
+      await env.EXTRACT_QUEUE.send({
+        ...buildIntentJob({ channel: e.channel, ts: e.ts, thread_ts: threadTs, user, text: e.text, files: e.files }),
+        ...(ec.botUserId && { botUserId: ec.botUserId }),
+      });
       return true;
     }
   }
@@ -138,7 +141,7 @@ async function onReaction(env: Env, e: ReactionAdded): Promise<void> {
   const name = reactionName(e.reaction);
   if (isIn(CONFIRM_REACTIONS.yes, name)) return confirmFromReaction(env, req, e.user);
   if (isIn(CONFIRM_REACTIONS.no, name)) {
-    return reply(env, req, "What's off — the people, the items, or both? Just reply here.");
+    return reply(env, req, WHATS_OFF_REPLY);
   }
   await env.EXTRACT_QUEUE.send({ kind: "clarify_reaction", requestId: req.id, userId: e.user, reaction: name });
 }

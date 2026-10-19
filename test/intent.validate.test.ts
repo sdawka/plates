@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCandidates, detectDelivery, validateDecision, type ValidateInput } from "../src/intent/validate";
+import { buildCandidates, detectDelivery, parseChoice, validateDecision, type IntentDecision, type ValidateInput } from "../src/intent/validate";
 import type { AskRow } from "../src/types";
 
 const NOW = Date.UTC(2026, 9, 21, 12, 0); // Wed 2026-10-21
@@ -16,13 +16,15 @@ function ask(over: Partial<AskRow> & { id: string }): AskRow {
   };
 }
 
-function input(speaker: string, asks: AskRow[], raw: unknown, over: Partial<ValidateInput> = {}): ValidateInput {
-  return { raw, candidates: buildCandidates(asks, speaker), speaker, text: "", tz: "UTC", now: NOW, links: [], files: [], ...over };
+const NONE: IntentDecision = { choice: "none", p: 0.95, ambiguous: 0, deadline: null, delivers: {} };
+const dec = (o: Partial<IntentDecision> = {}): IntentDecision => ({ ...NONE, ...o });
+
+function input(speaker: string, asks: AskRow[], decision: IntentDecision, over: Partial<ValidateInput> = {}): ValidateInput {
+  return { decision, candidates: buildCandidates(asks, speaker), speaker, text: "", tz: "UTC", now: NOW, links: [], files: [], ...over };
 }
 
 const one = [ask({ id: "a1" })];
 const two = [ask({ id: "a1" }), ask({ id: "a2" })];
-const dec = (o: Record<string, unknown>) => ({ action: "none", ask_id: null, note: null, deadline: null, confidence: 0.9, delivers_ask_id: null, ...o });
 
 describe("buildCandidates", () => {
   it("lists only open asks the speaker is a party to, with their allowed actions", () => {
@@ -36,113 +38,113 @@ describe("buildCandidates", () => {
   });
 });
 
+describe("parseChoice", () => {
+  const candidates = buildCandidates(two, "UOWN");
+  it("splits '<ref>:<action>' into its candidate and action", () => {
+    expect(parseChoice(candidates, "A2:reject")).toMatchObject({ candidate: { ask: { id: "a2" } }, kind: "reject" });
+  });
+  it("rejects none, unknown refs, unknown actions and actions the speaker may not take", () => {
+    for (const choice of ["none", "A9:reject", "A1:snooze", "A1:close", "reject", ""]) expect(parseChoice(candidates, choice), choice).toBeNull();
+  });
+});
+
 describe("validateDecision", () => {
-  it("applies automatically when confident with a single candidate", () => {
-    const r = validateDecision(input("UOWN", one, dec({ action: "reject", ask_id: "A1", note: "marketing owns it", confidence: 0.92 })));
-    expect(r).toMatchObject({ kind: "act", auto: true, askId: "a1", action: { kind: "reject", reason: "marketing owns it" } });
+  it("applies automatically at p >= 0.85 with no ambiguity", () => {
+    const r = validateDecision(input("UOWN", one, dec({ choice: "A1:reject", p: 0.92 }), { text: "marketing owns it" }));
+    expect(r).toMatchObject({ kind: "act", auto: true, askId: "a1", confidence: 0.92, action: { kind: "reject", reason: "marketing owns it" } });
+    expect(validateDecision(input("UOWN", one, dec({ choice: "A1:accept_now", p: 0.85 })))).toMatchObject({ auto: true });
   });
-  it("proposes below the confidence threshold", () => {
-    const r = validateDecision(input("UOWN", one, dec({ action: "accept_now", ask_id: "A1", confidence: 0.79 })));
-    expect(r).toMatchObject({ kind: "act", auto: false, askId: "a1" });
+  it("proposes from 0.5 up to the auto threshold", () => {
+    expect(validateDecision(input("UOWN", one, dec({ choice: "A1:accept_now", p: 0.84 })))).toMatchObject({ kind: "act", auto: false, askId: "a1" });
+    expect(validateDecision(input("UOWN", one, dec({ choice: "A1:accept_now", p: 0.5 })))).toMatchObject({ kind: "act", auto: false });
   });
-  it("accepts the real ask id as well as the ref", () => {
-    expect(validateDecision(input("UOWN", one, dec({ action: "accept_now", ask_id: "a1" })))).toMatchObject({ askId: "a1" });
+  it("does nothing below 0.5, and for none", () => {
+    expect(validateDecision(input("UOWN", one, dec({ choice: "A1:accept_now", p: 0.49 })))).toEqual({ kind: "none" });
+    expect(validateDecision(input("UOWN", one, dec({ choice: "none", p: 0.99 })))).toEqual({ kind: "none" });
   });
-  it("does not auto-apply when several asks fit; asks to pick when none is named", () => {
-    const r = validateDecision(input("UOWN", two, dec({ action: "reject", ask_id: null, confidence: 0.95 })));
-    expect(r).toMatchObject({ kind: "act", auto: false, askId: null });
-    expect(r.kind === "act" && r.eligible.map((c) => c.ask.id)).toEqual(["a1", "a2"]);
-    const named = validateDecision(input("UOWN", two, dec({ action: "reject", ask_id: "A2", confidence: 0.95 })));
-    expect(named).toMatchObject({ auto: false, askId: "a2" });
+  it("the ambiguous gate turns an auto-apply into a pick among the asks the action fits", () => {
+    const sure = validateDecision(input("UOWN", two, dec({ choice: "A2:reject", p: 0.97, ambiguous: 0.19 })));
+    expect(sure).toMatchObject({ auto: true, askId: "a2" });
+    const unsure = validateDecision(input("UOWN", two, dec({ choice: "A2:reject", p: 0.97, ambiguous: 0.2 })));
+    expect(unsure).toMatchObject({ kind: "act", auto: false, askId: null });
+    expect(unsure.kind === "act" && unsure.eligible.map((c) => c.ask.id)).toEqual(["a1", "a2"]);
   });
-  it("treats an unknown ask_id as unspecified", () => {
-    expect(validateDecision(input("UOWN", one, dec({ action: "accept_now", ask_id: "A9" })))).toMatchObject({ auto: true, askId: "a1" });
+  it("a named ask that doesn't allow the action is never retargeted", () => {
+    const asks = [ask({ id: "a1" }), ask({ id: "a2", state: "in_progress" })];
+    expect(validateDecision(input("UOWN", asks, dec({ choice: "A2:accept_now" })))).toEqual({ kind: "none" }); // not available in progress
+    expect(validateDecision(input("UOWN", asks, dec({ choice: "A1:accept_now" })))).toMatchObject({ askId: "a1" });
   });
   it("rejects actions the speaker may not take", () => {
-    expect(validateDecision(input("UOWN", one, dec({ action: "close" })))).toEqual({ kind: "none" }); // owner can't close
-    expect(validateDecision(input("UREQ", one, dec({ action: "reject" })))).toEqual({ kind: "none" }); // requester can't reject
+    expect(validateDecision(input("UOWN", one, dec({ choice: "A1:close" })))).toEqual({ kind: "none" });
+    expect(validateDecision(input("UREQ", one, dec({ choice: "A1:reject" })))).toEqual({ kind: "none" });
     const delivered = [ask({ id: "a1", state: "delivered", holder_id: "UREQ" })];
-    expect(validateDecision(input("UREQ", delivered, dec({ action: "close" })))).toMatchObject({ kind: "act", auto: true });
-    expect(validateDecision(input("UOWN", delivered, dec({ action: "done" })))).toEqual({ kind: "none" });
-  });
-  it("never retargets when the named ask doesn't allow the action", () => {
-    const asks = [ask({ id: "a1" }), ask({ id: "a2", state: "in_progress" })];
-    // accept_now is not available for the in-progress ask A2
-    expect(validateDecision(input("UOWN", asks, dec({ action: "accept_now", ask_id: "A2" })))).toEqual({ kind: "none" });
-  });
-  it("ignores none, unknown actions and garbage", () => {
-    expect(validateDecision(input("UOWN", one, dec({ action: "none" })))).toEqual({ kind: "none" });
-    expect(validateDecision(input("UOWN", one, dec({ action: "snooze" })))).toEqual({ kind: "none" });
-    expect(validateDecision(input("UOWN", one, null))).toEqual({ kind: "none" });
-    expect(validateDecision(input("UOWN", one, "x"))).toEqual({ kind: "none" });
-  });
-  it("clamps confidence and treats a missing one as zero", () => {
-    expect(validateDecision(input("UOWN", one, dec({ action: "accept_now", confidence: 7 })))).toMatchObject({ confidence: 1, auto: true });
-    expect(validateDecision(input("UOWN", one, dec({ action: "accept_now", confidence: undefined })))).toMatchObject({ confidence: 0, auto: false });
+    expect(validateDecision(input("UREQ", delivered, dec({ choice: "A1:close" })))).toMatchObject({ kind: "act", auto: true });
   });
 
   describe("required values", () => {
-    const owner = (o: Record<string, unknown>, over: Partial<ValidateInput> = {}) => validateDecision(input("UOWN", one, dec(o), over));
-    it("send_back, ack and put_back need a note", () => {
-      expect(owner({ action: "send_back", note: null })).toEqual({ kind: "none" });
-      expect(owner({ action: "send_back", note: "need the account id" })).toMatchObject({ action: { kind: "send_back", question: "need the account id" } });
+    const owner = (o: Partial<IntentDecision>, over: Partial<ValidateInput> = {}) => validateDecision(input("UOWN", one, dec(o), over));
+    it("send_back, ack and put_back take the reply as their note and need one", () => {
+      expect(owner({ choice: "A1:send_back" }, { text: " " })).toEqual({ kind: "none" });
+      expect(owner({ choice: "A1:send_back" }, { text: "need the account id" })).toMatchObject({ action: { kind: "send_back", question: "need the account id" } });
       const ackAsk = [ask({ id: "a1", type: "acknowledge" })];
-      expect(validateDecision(input("UOWN", ackAsk, dec({ action: "ack", note: "  " })))).toEqual({ kind: "none" });
-      expect(validateDecision(input("UOWN", ackAsk, dec({ action: "ack", note: "sending Thursday" })))).toMatchObject({
-        action: { kind: "ack", nextStep: "sending Thursday" },
-      });
-      const delivered = [ask({ id: "a1", state: "rejected", holder_id: "UREQ" })];
-      expect(validateDecision(input("UREQ", delivered, dec({ action: "put_back", note: null })))).toEqual({ kind: "none" });
-      expect(validateDecision(input("UREQ", delivered, dec({ action: "put_back", note: "it's yours" })))).toMatchObject({ action: { kind: "put_back", note: "it's yours" } });
+      expect(validateDecision(input("UOWN", ackAsk, dec({ choice: "A1:ack" }), { text: "  " }))).toEqual({ kind: "none" });
+      expect(validateDecision(input("UOWN", ackAsk, dec({ choice: "A1:ack" }), { text: "sending Thursday" }))).toMatchObject({ action: { kind: "ack", nextStep: "sending Thursday" } });
+      const rejected = [ask({ id: "a1", state: "rejected", holder_id: "UREQ" })];
+      expect(validateDecision(input("UREQ", rejected, dec({ choice: "A1:put_back" }), { text: "it's yours" }))).toMatchObject({ action: { kind: "put_back", note: "it's yours" } });
     });
-    it("redirect needs a mention of someone else", () => {
-      expect(owner({ action: "redirect" }, { text: "passing this on" })).toEqual({ kind: "none" });
-      expect(owner({ action: "redirect" }, { text: "<@UOWN> me no, ask <@UCAROL|carol>" })).toMatchObject({ action: { kind: "redirect", toUserId: "UCAROL" } });
+    it("the note is trimmed and capped at 500 characters", () => {
+      const r = owner({ choice: "A1:reject" }, { text: `  ${"x".repeat(600)}  ` });
+      expect(r.kind === "act" && r.action.kind === "reject" && r.action.reason).toHaveLength(500);
+    });
+    it("redirect targets the first mention that is neither the speaker nor the bot; none means no action", () => {
+      expect(owner({ choice: "A1:redirect" }, { text: "passing this on" })).toEqual({ kind: "none" });
+      expect(owner({ choice: "A1:redirect" }, { text: "<@UOWN> me no, ask <@UCAROL|carol>" })).toMatchObject({ action: { kind: "redirect", toUserId: "UCAROL" } });
+      expect(owner({ choice: "A1:redirect" }, { text: "<@UBOT> hand to <@UCAROL>", botUserId: "UBOT" })).toMatchObject({ action: { toUserId: "UCAROL" } });
+      expect(owner({ choice: "A1:redirect" }, { text: "<@UBOT> please", botUserId: "UBOT" })).toEqual({ kind: "none" });
     });
     it("accept_later parses the deadline in the speaker's tz; no date is allowed", () => {
-      const r = owner({ action: "accept_later", deadline: "2026-10-22" }, { tz: "Asia/Tokyo" });
+      const r = owner({ choice: "A1:accept_later", deadline: "2026-10-22" }, { tz: "Asia/Tokyo" });
       expect(r).toMatchObject({ action: { kind: "accept_later", deadlineAt: Date.UTC(2026, 9, 22, 14, 59) } });
-      expect(owner({ action: "accept_later", deadline: null })).toMatchObject({ action: { kind: "accept_later", deadlineAt: null } });
-      expect(owner({ action: "accept_later", deadline: "2026-10-01" })).toMatchObject({ action: { kind: "accept_later", deadlineAt: null } }); // past
-      expect(owner({ action: "accept_later", deadline: "tomorrow" })).toMatchObject({ action: { kind: "accept_later", deadlineAt: null } });
+      expect(owner({ choice: "A1:accept_later", deadline: null })).toMatchObject({ action: { kind: "accept_later", deadlineAt: null } });
+      expect(owner({ choice: "A1:accept_later", deadline: "2026-10-01" })).toMatchObject({ action: { kind: "accept_later", deadlineAt: null } }); // past
     });
-    it("set_deadline requires a valid future date", () => {
+    it("set_deadline requires a future date", () => {
       const accepted = [ask({ id: "a1", state: "accepted" })];
-      const run = (deadline: unknown) => validateDecision(input("UOWN", accepted, dec({ action: "set_deadline", deadline })));
+      const run = (deadline: string | null) => validateDecision(input("UOWN", accepted, dec({ choice: "A1:set_deadline", deadline })));
       expect(run(null)).toEqual({ kind: "none" });
       expect(run("2026-10-20")).toEqual({ kind: "none" });
-      expect(run("2026-10-26T10:00")).toMatchObject({ action: { kind: "set_deadline", deadlineAt: Date.UTC(2026, 9, 26, 10, 0) } });
+      expect(run("2026-10-26")).toMatchObject({ action: { kind: "set_deadline", deadlineAt: Date.UTC(2026, 9, 26, 23, 59) } });
     });
-    it("done carries the shared link, else the file permalink", () => {
-      expect(owner({ action: "done", note: "all there" }, { links: ["https://x.test/doc"] })).toMatchObject({
+    it("done carries the shared link, else the file permalink, and the reply as its note", () => {
+      expect(owner({ choice: "A1:done" }, { text: "all there", links: ["https://x.test/doc"] })).toMatchObject({
         action: { kind: "done", link: "https://x.test/doc", note: "all there" },
       });
-      expect(owner({ action: "done" }, { files: [{ name: "q3.xlsx", permalink: "https://slack.test/f/1" }] })).toMatchObject({
+      expect(owner({ choice: "A1:done" }, { files: [{ name: "q3.xlsx", permalink: "https://slack.test/f/1" }] })).toMatchObject({
         action: { kind: "done", link: "https://slack.test/f/1" },
       });
-      expect(owner({ action: "done" })).toMatchObject({ action: { kind: "done" } });
     });
   });
 });
 
 describe("detectDelivery", () => {
   const shared = { links: ["https://x.test/doc"] };
-  it("flags an owner sharing a link for one of their open asks", () => {
-    const r = detectDelivery(input("UOWN", two, dec({ action: "none", delivers_ask_id: "A2" }), shared));
+  const delivers = (o: Record<string, number>) => dec({ delivers: o });
+  it("flags an owner sharing a link for the open ask it most likely delivers", () => {
+    const r = detectDelivery(input("UOWN", two, delivers({ A1: 0.62, A2: 0.9 }), shared));
     expect(r).toMatchObject({ ask: { id: "a2" }, action: { kind: "done", link: "https://x.test/doc" } });
   });
-  it("needs a shared file or link", () => {
-    expect(detectDelivery(input("UOWN", two, dec({ delivers_ask_id: "A1" })))).toBeNull();
+  it("needs p >= 0.6 and a shared file or link", () => {
+    expect(detectDelivery(input("UOWN", two, delivers({ A1: 0.59 }), shared))).toBeNull();
+    expect(detectDelivery(input("UOWN", two, delivers({ A1: 0.99 })))).toBeNull();
   });
   it("only for the owner, and only when done is possible", () => {
-    expect(detectDelivery(input("UREQ", two, dec({ delivers_ask_id: "A1" }), shared))).toBeNull();
+    expect(detectDelivery(input("UREQ", two, delivers({ A1: 0.99 }), shared))).toBeNull();
     const ack = [ask({ id: "a1", type: "acknowledge" })]; // acknowledge asks use ack, not done
-    expect(detectDelivery(input("UOWN", ack, dec({ delivers_ask_id: "A1" }), shared))).toBeNull();
-    expect(detectDelivery(input("UOWN", two, dec({ delivers_ask_id: "zzz" }), shared))).toBeNull();
-    expect(detectDelivery(input("UOWN", two, dec({ delivers_ask_id: null }), shared))).toBeNull();
+    expect(detectDelivery(input("UOWN", ack, delivers({ A1: 0.99 }), shared))).toBeNull();
+    expect(detectDelivery(input("UOWN", two, delivers({ A9: 0.99 }), shared))).toBeNull();
   });
   it("uses the file name as a note when the file has no permalink", () => {
-    const r = detectDelivery(input("UOWN", one, dec({ delivers_ask_id: "A1" }), { files: [{ name: "deck.pdf", permalink: null }] }));
+    const r = detectDelivery(input("UOWN", one, delivers({ A1: 0.9 }), { files: [{ name: "deck.pdf", permalink: null }] }));
     expect(r?.action).toEqual({ kind: "done", note: "deck.pdf" });
   });
 });

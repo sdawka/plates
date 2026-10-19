@@ -125,8 +125,12 @@ describe("capture by DMing the bot", () => {
     expect(h.queue.sentOfKind("extract")).toEqual([
       { kind: "extract", channelId: dm(), threadTs: null, messageTs: msg.ts, taggerId: USERS.dana, text: "ask <@UBOB> to send the Q3 numbers by friday", origin: "dm" },
     ]);
+    expect(h.systemOne.requests).toHaveLength(0); // the 3s ack never waits on System One
+    h.systemOne.queueNoul("is_ask", 0.95);
     h.anthropic.queueToolUse("record_asks", extractionInput({ requester: USERS.dana, owner: USERS.bob, asks: [{ title: "Send the Q3 numbers", source_ts: msg.ts }] }));
     await h.drain();
+    expect(h.systemOne.requests).toHaveLength(1);
+    expect(h.systemOne.requests[0]!.questions.is_ask).toEqual({ type: "noul", instructions: "The message asks someone to do, deliver, decide or acknowledge something." });
     const [req] = h.requests();
     expect(req).toMatchObject({ channel_id: dm(), thread_ts: msg.ts, status: "pending_confirmation", tagged_by_id: USERS.dana });
     const card = h.slack.message(dm(), req!.message_ts as string);
@@ -139,6 +143,34 @@ describe("capture by DMing the bot", () => {
     expect(h.requests()[0]!.status).toBe("confirmed");
     expect(h.slack.dmTexts(USERS.bob).join("\n")).toContain("Send the Q3 numbers");
     expect(h.errors).toEqual([]);
+  });
+
+  it("chit-chat is not extracted: one hint in the DM, no request, no extraction call", async () => {
+    const msg = await h.say({ channel: dm(), user: USERS.dana, text: "hey, thanks for the help earlier" });
+    h.systemOne.queueNoul("is_ask", 0.1);
+    await h.drain();
+    expect(h.requests()).toHaveLength(0);
+    expect(h.anthropic.requests).toHaveLength(0);
+    const hints = h.slack.botMessages(dm()).filter((m) => m.text.includes("I only track asks"));
+    expect(hints).toHaveLength(1);
+    expect(hints[0]!.text).toBe("I only track asks. Try: `@bob send the Q3 deck by Friday`");
+    expect(h.queue.retried).toHaveLength(0);
+    void msg;
+  });
+
+  it("a transient System One failure retries the DM job; a permanent one tells the sender", async () => {
+    await h.say({ channel: dm(), user: USERS.dana, text: "ask <@UBOB> to send the Q3 numbers by friday" });
+    h.systemOne.failNext(503).queueNoul("is_ask", 0.9);
+    expect((await h.drain()).retried).toHaveLength(1);
+    h.anthropic.queueToolUse("record_asks", extractionInput({ requester: USERS.dana, owner: USERS.bob, asks: [{ title: "Send the Q3 numbers", source_ts: h.slack.im(USERS.dana).messages[0]!.ts }] }));
+    expect((await h.drain()).acked).toHaveLength(1);
+    expect(h.requests()).toHaveLength(1);
+
+    await h.say({ channel: dm(), user: USERS.dana, text: "and ask <@UBOB> for the deck" });
+    h.systemOne.failNext(402);
+    const r = await h.drain();
+    expect(r.retried).toHaveLength(0);
+    expect(h.slack.botMessages(dm()).at(-1)!.text).toContain("couldn't work out");
   });
 
   it("the bot's own messages, empty messages and thread replies in the DM are not captures", async () => {

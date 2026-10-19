@@ -11,9 +11,10 @@ export interface Env {
   OPENROUTER_API_KEY: string;
   EXTRACT_MODEL: string; // anthropic/claude-sonnet-5.5 (OpenRouter id)
   FAST_MODEL: string; // anthropic/claude-haiku-5.5
+  DECIDE_MODEL: string; // typesafe/jev-1.14 (System One)
   /** Overrides for local integration runs against mock servers. Unset in production. */
   SLACK_API_URL?: string; // default https://slack.com/api
-  LLM_BASE_URL?: string; // default https://openrouter.ai/api (Anthropic-compatible /v1/messages)
+  LLM_BASE_URL?: string; // default https://openrouter.ai/api (/v1/messages and /v1/systemone)
   // Phase 3, all optional. Features switch off when their secrets are missing.
   SLACK_CLIENT_ID?: string; // user-token OAuth (DM context)
   SLACK_CLIENT_SECRET?: string;
@@ -273,6 +274,8 @@ export type ExtractJob =
       text: string;
       files: { name: string | null; permalink: string | null }[];
       links: string[];
+      /** The bot's own user id, so a redirect never targets it. */
+      botUserId?: string;
     }
   | {
       kind: "clarify_reaction"; // unrecognised emoji on a pending confirmation

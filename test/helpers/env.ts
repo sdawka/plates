@@ -1,5 +1,5 @@
 // Test harness: a full Env (FakeD1 with all migrations, FakeQueue, real PlateKeeper per user on shim
-// storage), the fakes for Slack and Anthropic behind one fetch stub, a controllable clock, and a
+// storage), the fakes for Slack, Anthropic and System One behind one fetch stub, a controllable clock, and a
 // driver that plays Slack users against `worker.fetch` with correctly signed requests.
 import { vi } from "vitest";
 import worker from "../../src/index";
@@ -8,6 +8,7 @@ import type { Env, ExtractJob } from "../../src/types";
 import { MemoryDurableObjectState } from "./cloudflare-workers";
 import { FakeTrackers } from "./fakeTrackers";
 import { ANTHROPIC_KEY, ANTHROPIC_URL, FakeAnthropic } from "./fakeAnthropic";
+import { FakeSystemOne } from "./fakeSystemOne";
 import { asD1, makeDb, type FakeD1 } from "./fakeD1";
 import { API_URL, BOT_TOKEN, BOT_USER_ID, FakeSlack, type FakeUser, type StoredMessage } from "./fakeSlack";
 import { Network } from "./net";
@@ -199,6 +200,7 @@ export class Harness {
   readonly net = new Network();
   readonly slack: FakeSlack;
   readonly anthropic = new FakeAnthropic();
+  readonly systemOne = new FakeSystemOne();
   readonly trackers: FakeTrackers;
   readonly queue = new FakeQueue();
   readonly db: FakeD1;
@@ -222,6 +224,7 @@ export class Harness {
       OPENROUTER_API_KEY: ANTHROPIC_KEY,
       EXTRACT_MODEL: "anthropic/claude-sonnet-5.5",
       FAST_MODEL: "anthropic/claude-haiku-5.5",
+      DECIDE_MODEL: "typesafe/jev-1.14",
       SLACK_API_URL: API_URL,
       LLM_BASE_URL: ANTHROPIC_URL,
       PUBLIC_URL: "https://plates.test",
@@ -234,6 +237,7 @@ export class Harness {
 
     this.slack.attach(this.net);
     this.anthropic.attach(this.net);
+    this.systemOne.attach(this.net, ANTHROPIC_URL);
     this.trackers.attach(this.net);
     this.net.install();
     this.ingress = new SlackIngress((req) => this.fetch(req), this.clock.now, this.slack);

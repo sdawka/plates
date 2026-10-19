@@ -1,6 +1,6 @@
 // Behaviours pinned by the official Slack / Anthropic docs (verified in Round 2).
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ANTHROPIC_KEY } from "../helpers/fakeAnthropic";
+import { ANTHROPIC_KEY, strictSchemaProblems } from "../helpers/fakeAnthropic";
 import { createHarness, type Harness } from "../helpers/env";
 import { tagThread } from "../helpers/scenario";
 
@@ -19,6 +19,7 @@ describe("Anthropic forced tool use (docs: tool use > Forcing tool use)", () => 
     const tools = h.anthropic.requests.flatMap((r) => (r.body.tools as { strict?: boolean }[]) ?? []);
     expect(tools.length).toBeGreaterThan(0);
     expect(tools.every((t) => t.strict === true)).toBe(true);
+    for (const t of tools as { name: string; input_schema: unknown }[]) expect(strictSchemaProblems(t.input_schema, t.name)).toEqual([]);
   });
 
   it("the fake rejects forced tool use on Sonnet 5.5 and allows it on Haiku 5.5", async () => {

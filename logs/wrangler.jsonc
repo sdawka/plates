@@ -13,8 +13,8 @@
   "vars": {
     "RETENTION_DAYS": "14",
     // From Zero Trust -> Access -> Applications -> this app: the team domain and the Application Audience (AUD) tag.
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "https://rapid-credit-d30a.cloudflareaccess.com",
+    "ACCESS_AUD": "560a64bbdbf5f4770366e77a2bed7b9c73ceda8396b69afd74f2ea3d7623b7de"
   }
   // Optional secret: SLACK_BOT_TOKEN, to show names instead of Slack ids.
 }

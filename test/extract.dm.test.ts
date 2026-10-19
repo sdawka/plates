@@ -190,7 +190,7 @@ describe("origins", () => {
     expect(requests()).toHaveLength(0);
     const posts = calls.filter((c) => c.method === "chat.postMessage");
     expect(posts).toHaveLength(1);
-    expect(posts[0]!.form).toMatchObject({ channel: "D_BOT", text: "I only track asks. Try: `@bob send the Q3 deck by Friday`" });
+    expect(posts[0]!.form).toMatchObject({ channel: "D_BOT", text: expect.stringContaining("I track asks") });
   });
   it("dm origin: is_ask of 0.3 is enough to extract", async () => {
     failFor = () => null;

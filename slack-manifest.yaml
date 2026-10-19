@@ -8,6 +8,17 @@ features:
     home_tab_enabled: true
     messages_tab_enabled: true
     messages_tab_read_only_enabled: false
+  agent_view:
+    agent_description: Plates keeps track of who asked whom for what. Tell it an ask to track, or ask what's on your plate and what you're waiting on.
+    suggested_prompts:
+      - title: What's on my plate?
+        message: What's on my plate?
+      - title: What am I waiting on?
+        message: What am I waiting on?
+      - title: Track an ask
+        message: Remind me to send Dana the Q3 deck by Friday
+      - title: How does Plates work?
+        message: How does Plates work?
   bot_user:
     display_name: plates
     always_online: true
@@ -26,6 +37,9 @@ oauth_config:
   scopes:
     bot:
       - app_mentions:read
+      - assistant:write
+      - channels:read
+      - groups:read
       - channels:history
       - groups:history
       - im:history
@@ -50,6 +64,7 @@ settings:
     bot_events:
       - app_mention
       - app_home_opened
+      - member_joined_channel
       - message.channels
       - message.groups
       - message.im

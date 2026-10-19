@@ -6,7 +6,8 @@ import { loadDmAccess } from "../home/home";
 import { TransitionError, type Env } from "../types";
 import type { Block } from "./blocks";
 import { slackCall, SlackApiError } from "./api";
-import { HELP_TEXT, commandPostText, parseSlashCommand, parseSlashText, type SlashCommand } from "./parse";
+import { helpMessage } from "./help";
+import { commandPostText, parseSlashCommand, parseSlashText, type SlashCommand } from "./parse";
 import { buildSettingsModal } from "./settings";
 
 const NOT_IN_CHANNEL = new Set(["not_in_channel", "channel_not_found", "is_archived"]);
@@ -22,7 +23,7 @@ export function handleSlashCommand(env: Env, ctx: ExecutionContext, params: URLS
   const action = parseSlashText(cmd.text);
   switch (action.kind) {
     case "help":
-      return json({ response_type: "ephemeral", text: HELP_TEXT });
+      return json({ response_type: "ephemeral", ...helpMessage() });
     case "settings":
       ctx.waitUntil(openSettings(env, cmd.triggerId, cmd.userId).catch((err) => console.error("settings modal failed", err)));
       return ack();

@@ -4,6 +4,7 @@ import { OWNER_PLATE_STATES, SIZE_LABEL, type AskRow, type AskState, type DraftA
 import { availableActions } from "../domain/transitions";
 import { isHttpUrl } from "../slack/format";
 import { dmAccessBlocks, type DmAccess } from "../slack/dmaccess";
+import { helpButton } from "../slack/help";
 import { BUMP_INTERVAL_MS } from "../domain/service";
 import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, SETTINGS_OPEN_ACTION_ID, askActionId, type AskActionKind } from "../slack/actions";
 
@@ -158,17 +159,17 @@ function responseText(ask: AskRow): string {
   }
 }
 
-function responseUnit(ask: AskRow, viewer: string): Unit {
+function responseUnit(ask: AskRow, viewer: string, withActions = true): Unit {
   const blocks: Block[] = [section(responseText(ask), `resp:${ask.id}`)];
   if (ask.last_note) blocks.push(context(quote(ask.last_note)));
   const link = sourceLink(ask);
   if (link) blocks.push(context(link));
-  const actions = actionsBlock(ask, viewer, `resp_actions:${ask.id}`);
+  const actions = withActions ? actionsBlock(ask, viewer, `resp_actions:${ask.id}`) : null;
   if (actions) blocks.push(actions);
   return { blocks };
 }
 
-function plateUnit(ask: AskRow, viewer: string, now: number): Unit {
+function plateUnit(ask: AskRow, viewer: string, now: number, withActions = true): Unit {
   const snoozed = ask.state === "snoozed";
   const title = esc(clamp(ask.title, 300));
   const lines: string[] = [snoozed ? `💤 ~${title}~` : `*${title}*`];
@@ -182,7 +183,7 @@ function plateUnit(ask: AskRow, viewer: string, now: number): Unit {
   const link = sourceLink(ask);
   if (link) lines.push(link);
   const blocks: Block[] = [section(lines.join("\n"), `plate:${ask.id}`)];
-  const actions = actionsBlock(ask, viewer, `plate_actions:${ask.id}`);
+  const actions = withActions ? actionsBlock(ask, viewer, `plate_actions:${ask.id}`) : null;
   if (actions) blocks.push(actions);
   return {
     blocks,
@@ -202,7 +203,7 @@ const STATE_WORDS: Record<AskState, string> = {
   withdrawn: "withdrawn",
 };
 
-function waitingUnit(ask: AskRow, viewer: string, now: number): Unit {
+function waitingUnit(ask: AskRow, viewer: string, now: number, withActions = true): Unit {
   const lines = [`*${esc(clamp(ask.title, 300))}*`];
   const parts = [`${user(ask.holder_id)} ${STATE_WORDS[ask.state]}`, SIZE_LABEL[ask.size]];
   if (ask.deadline_at !== null) parts.push(`due ${dateToken(ask.deadline_at)}`);
@@ -216,8 +217,8 @@ function waitingUnit(ask: AskRow, viewer: string, now: number): Unit {
   const link = sourceLink(ask);
   if (link) extra.push(link);
   const blocks: Block[] = [section(lines.join("\n"), `wait:${ask.id}`), context(extra.join(" · "))];
-  const actions = actionsBlock(ask, viewer, `wait_actions:${ask.id}`);
-  if (bumpable && !bumpedRecently) {
+  const actions = withActions ? actionsBlock(ask, viewer, `wait_actions:${ask.id}`) : null;
+  if (withActions && bumpable && !bumpedRecently) {
     const bump = {
       type: "button",
       action_id: BUMP_ACTION_ID,
@@ -331,7 +332,10 @@ export function buildHomeView(data: HomeData, viewerId: string, now: number): Vi
     {
       type: "actions",
       block_id: "home_settings",
-      elements: [{ type: "button", action_id: SETTINGS_OPEN_ACTION_ID, text: { type: "plain_text", text: "⚙ Settings", emoji: true }, value: "open" }],
+      elements: [
+        { type: "button", action_id: SETTINGS_OPEN_ACTION_ID, text: { type: "plain_text", text: "⚙ Settings", emoji: true }, value: "open" },
+        helpButton(),
+      ],
     },
     ...renderSection("Needs your response", needs.map((a) => responseUnit(a, viewerId)), "Nothing waiting on you. 🎉", BUDGET.response),
     ...renderSection("On my plate", onPlate.map((a) => plateUnit(a, viewerId, now)), "Your plate is clear.", BUDGET.plate),
@@ -340,4 +344,34 @@ export function buildHomeView(data: HomeData, viewerId: string, now: number): Vi
     ...dmAccessBlocks(data.dm),
   ];
   return { type: "home", blocks: blocks.slice(0, MAX_BLOCKS) };
+}
+
+/** Messages allow 50 blocks; leave room for the header and the closing hint. */
+const MESSAGE_BUDGET = 46;
+const ACT_HINT = "To act on these, open my *Home* tab, or reply in the ask's thread.";
+
+/**
+ * A read-only answer to "what's on my plate?" or "what am I waiting on?" in a DM. No buttons: a list in a
+ * message goes stale, and the Home tab is where asks are worked.
+ */
+export function buildPlateMessage(data: HomeData, viewerId: string, now: number, which: "plate" | "waiting"): { text: string; blocks: Block[] } {
+  if (which === "waiting") {
+    const units = data.waiting.map((a) => waitingUnit(a, viewerId, now, false));
+    const text = units.length === 0 ? "You aren't waiting on anyone." : `You're waiting on ${units.length === 1 ? "1 ask" : `${units.length} asks`}.`;
+    const blocks = units.length === 0 ? [section(text)] : [section(`*${text}*`), ...fit(units, MESSAGE_BUDGET), context(ACT_HINT)];
+    return { text, blocks };
+  }
+  const needs = data.plate.filter((a) => NEEDS_RESPONSE.includes(a.state));
+  const onPlate = groupByRequester(sortPlate(data.plate.filter((a) => ON_PLATE.includes(a.state))));
+  if (needs.length === 0 && onPlate.length === 0) {
+    const text = "Your plate is clear. 🎉";
+    return { text, blocks: [section(text)] };
+  }
+  const text = summaryLine(data.plate).replace(/[*]/g, "");
+  const half = needs.length && onPlate.length ? Math.floor(MESSAGE_BUDGET / 2) : MESSAGE_BUDGET;
+  const blocks: Block[] = [section(summaryLine(data.plate))];
+  if (needs.length) blocks.push(section("*Needs your response*"), ...fit(needs.map((a) => responseUnit(a, viewerId, false)), half - 1));
+  if (onPlate.length) blocks.push(section("*On your plate*"), ...fit(onPlate.map((a) => plateUnit(a, viewerId, now, false)), half - 1));
+  blocks.push(context(ACT_HINT));
+  return { text, blocks };
 }

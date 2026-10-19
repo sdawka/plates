@@ -141,7 +141,7 @@ function newRequestRow(
 
 /** Below this a DM to the bot is not an ask, so nothing is extracted. */
 const IS_ASK_MIN = 0.3;
-const NOT_AN_ASK_REPLY = "I only track asks. Try: `@bob send the Q3 deck by Friday`";
+const NOT_AN_ASK_REPLY = "I track asks, like `remind me to send Dana the Q3 deck by Friday`. You can also ask me “what's on my plate?”, or say `help`.";
 
 /** Cheap filter before the extraction call: does the DM ask someone to do, deliver, decide or acknowledge something? */
 async function looksLikeAsk(env: Env, text: string): Promise<boolean> {

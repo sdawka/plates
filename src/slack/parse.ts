@@ -90,6 +90,7 @@ export const HELP_TEXT = [
   "• `/plates settings` sets your time zone, digest time, working hours and reminder limit",
   "• Tag @plates in a thread, use the message shortcut (⋯ → Put on someone's plate), or just DM me",
   "• In a thread with a request, reply in plain language (\"rejecting this, marketing owns it\") to act on it",
+  "• Your plate is in my Home tab. DM me \"what's on my plate?\" or \"what am I waiting on?\" any time",
 ].join("\n");
 
 export const commandPostText = (userId: string, text: string) => `<@${userId}> via /plates: ${text}`;

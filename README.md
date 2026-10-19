@@ -31,7 +31,7 @@ npx wrangler d1 create plates
 ```sh
 npx wrangler queues create plates-extract
 npx wrangler queues create plates-extract-dlq   # dead-letter queue for jobs that exhaust retries
-npm run db:migrate:remote                       # applies migrations/0001_init.sql, 0002_phase2_3.sql, 0003_trackers.sql
+npm run db:migrate:remote                       # applies every file in migrations/
 npm run deploy                                  # prints the Worker URL
 ```
 
@@ -47,6 +47,8 @@ npx wrangler secret put OPENROUTER_API_KEY     # https://openrouter.ai/settings/
 
 4. In the app's **Event Subscriptions** page, confirm the request URL shows *Verified* (re-save if it was created before the secret was set).
 5. Optional features (DM reading, tracker sync) need the extra secrets below; set `PUBLIC_URL` to the Worker URL for OAuth.
+
+**Updating an existing app.** When `slack-manifest.yaml` changes (new scopes, events or the agent view), open the app at https://api.slack.com/apps → **App Manifest**, paste the new file, save, then **Install App → Reinstall to Workspace** so the new scopes are granted.
 
 ## Configuration
 
@@ -112,7 +114,8 @@ Use two or three people (call them Dana, Bob, Tara). Everything below should als
 9. **Other ways in**: `/plates @Bob send the deck by Friday`; the message shortcut **Put on someone's plate** on any message; a DM to the bot.
 10. **Unconfirmed**: leave a confirmation unanswered → nudge next working day, then shown as "unconfirmed" on Home.
 11. **Reminders**: `/plates settings` → set your timezone and reminder cap; the daily digest arrives at your work start.
-12. **Optional**: Connect DMs from Home (needs the OAuth secrets), then tag @plates in a DM it isn't in. With `TRACKER` set, accepted deliverables appear in Jira/Linear.
+12. **Ask Plates**: open Plates from the sidebar (or Slack's top bar, since it's an agent). The first time you open it, it introduces itself. Try the starter prompts: "What's on my plate?", "What am I waiting on?", "How does Plates work?". `@plates help` in a channel and `/plates help` show the help privately, and **❓ How it works** on Home opens it too. Inviting Plates to a channel posts a one-line hello.
+13. **Optional**: Connect DMs from Home (needs the OAuth secrets), then tag @plates in a DM it isn't in. With `TRACKER` set, accepted deliverables appear in Jira/Linear.
 
 Also check once on real Cloudflare: two people confirming the same request at the same moment produces one set of items (the guard relies on `changes()` inside a D1 batch, which the tests only exercise on SQLite).
 

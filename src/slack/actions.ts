@@ -83,4 +83,5 @@ export const PROPOSAL_ACTIONS = {
   pick: "prop:pick",
 } as const;
 export const SETTINGS_OPEN_ACTION_ID = "settings:open";
+export const HELP_OPEN_ACTION_ID = "help:open";
 export const SETTINGS_CALLBACK_ID = "settings:save";

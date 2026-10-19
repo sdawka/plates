@@ -19,7 +19,9 @@ describe("/plates help", () => {
   it.each(["", "help", "  HELP "])("answers %j privately with the usage, within the ack", async (text) => {
     const res = await slash(text);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ response_type: "ephemeral", text: HELP_TEXT });
+    const body = (await res.json()) as { response_type: string; text: string; blocks: unknown[] };
+    expect(body).toMatchObject({ response_type: "ephemeral", text: HELP_TEXT });
+    expect(JSON.stringify(body.blocks)).toContain("Put on someone's plate");
     expect(h.slack.calls).toHaveLength(0);
   });
 });
@@ -151,9 +153,9 @@ describe("capture by DMing the bot", () => {
     await h.drain();
     expect(h.requests()).toHaveLength(0);
     expect(h.anthropic.requests).toHaveLength(0);
-    const hints = h.slack.botMessages(dm()).filter((m) => m.text.includes("I only track asks"));
+    const hints = h.slack.botMessages(dm()).filter((m) => m.text.includes("I track asks"));
     expect(hints).toHaveLength(1);
-    expect(hints[0]!.text).toBe("I only track asks. Try: `@bob send the Q3 deck by Friday`");
+    expect(hints[0]!.text).toContain("what's on my plate?");
     expect(h.queue.retried).toHaveLength(0);
     void msg;
   });

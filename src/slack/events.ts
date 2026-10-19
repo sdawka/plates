@@ -4,10 +4,13 @@ import { dispatch } from "../effects";
 import { getAsksByRequest, getRequestByMessage, getRequestsInThread } from "../domain/repo";
 import { confirmDiscarded, confirmRequest } from "../domain/service";
 import { publishHome } from "../home/home";
+import { loadHomeData } from "../home/queries";
+import { buildPlateMessage } from "../home/view";
 import { TransitionError, type Effect, type Env, type RequestRow } from "../types";
 import { slackCall } from "./api";
 import { CONFIRM_REACTIONS, WHATS_OFF_REPLY } from "./actions";
 import { buildIntentJob, type MessageFile } from "./parse";
+import { channelIntro, helpMessage, isExplicitHelp, parseDmQuestion, type DmQuestion } from "./help";
 
 interface MessageLike {
   type: "app_mention" | "message";
@@ -30,9 +33,16 @@ interface ReactionAdded {
 interface HomeOpened {
   type: "app_home_opened";
   user: string;
+  channel?: string;
   tab?: string;
 }
-export type SlackEvent = MessageLike | ReactionAdded | HomeOpened;
+interface MemberJoined {
+  type: "member_joined_channel";
+  user: string;
+  channel: string;
+  inviter?: string;
+}
+export type SlackEvent = MessageLike | ReactionAdded | HomeOpened | MemberJoined;
 
 export interface EventContext {
   /** Our own bot user id, from the event envelope's `authorizations`. */
@@ -46,14 +56,43 @@ export async function handleEvent(env: Env, event: SlackEvent, ec: EventContext)
     case "reaction_added": return onReaction(env, event);
     case "app_home_opened":
       if (event.tab === "home") await publishHome(env, event.user);
+      if (event.tab === "messages") await introduceOnce(env, event.user, event.channel ?? event.user);
+      return;
+    case "member_joined_channel":
+      if (ec.botUserId && event.user === ec.botUserId) {
+        await slackCall(env, "chat.postMessage", { channel: event.channel, ...channelIntro(event.inviter) });
+      }
       return;
   }
+}
+
+// ---------- introductions and questions ----------
+
+/** The first time someone opens the DM with Plates, say hello and how it works. */
+async function introduceOnce(env: Env, userId: string, channel: string): Promise<void> {
+  const first = await env.DB.prepare("INSERT OR IGNORE INTO user_intros (user_id, intro_at) VALUES (?, ?)").bind(userId, Date.now()).run();
+  if (!first.meta.changes) return;
+  await slackCall(env, "chat.postMessage", { channel, ...helpMessage({ greeting: true }) });
+}
+
+/** Answers "help", "what's on my plate?" and "what am I waiting on?" in the DM, in the message's thread. */
+async function answerDmQuestion(env: Env, q: DmQuestion, userId: string, channel: string, ts: string): Promise<void> {
+  if (q === "help") {
+    await slackCall(env, "chat.postMessage", { channel, thread_ts: ts, ...helpMessage() });
+    return;
+  }
+  const data = await loadHomeData(env.DB, userId);
+  await slackCall(env, "chat.postMessage", { channel, thread_ts: ts, unfurl_links: false, ...buildPlateMessage(data, userId, Date.now(), q) });
 }
 
 // ---------- app_mention ----------
 
 async function onMention(env: Env, e: MessageLike, ec: EventContext): Promise<void> {
   if (!e.user || e.bot_id) return;
+  if (isExplicitHelp(e.text ?? "")) {
+    await slackCall(env, "chat.postEphemeral", { channel: e.channel, user: e.user, ...(e.thread_ts && { thread_ts: e.thread_ts }), ...helpMessage() });
+    return;
+  }
   // A mention inside a thread that already has a request is a correction or a follow-up, not a new capture.
   if (e.thread_ts && e.thread_ts !== e.ts && (await routeThreadReply(env, e, e.user, e.thread_ts, ec))) return;
   await env.EXTRACT_QUEUE.send({
@@ -80,9 +119,11 @@ async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<vo
   if (!isHumanMessage(e, ec) || !e.user) return;
   const user = e.user;
 
-  // A top-level message in the bot's own DM is a capture.
+  // A top-level message in the bot's own DM is a question for Plates or a capture.
   if (e.channel_type === "im" && (!e.thread_ts || e.thread_ts === e.ts)) {
     if (!(e.text ?? "").trim()) return;
+    const q = parseDmQuestion(e.text ?? "");
+    if (q) return answerDmQuestion(env, q, user, e.channel, e.ts);
     await env.EXTRACT_QUEUE.send({
       kind: "extract",
       channelId: e.channel,

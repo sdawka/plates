@@ -37,6 +37,12 @@ describe("pending request message", () => {
     expect(s).toContain("req:edit");
   });
 
+  it("reads as a reminder when someone asks themselves", () => {
+    const s = json(renderRequest(req({ requester_id: "UBOB", owner_id: "UBOB", tagged_by_id: "UBOB" }), []).blocks);
+    expect(s).toContain("📋 Reminder for *<@UBOB>*: 2 things");
+    expect(s).not.toContain("is asking");
+  });
+
   it("omits the tagger when they are the requester, and shows the clarify question", () => {
     const s = json(renderRequest(req({ tagged_by_id: "UDANA", clarify_question: "Who's asking?" }), []).blocks);
     expect(s).not.toContain("tagged by");

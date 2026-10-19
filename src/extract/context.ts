@@ -155,10 +155,12 @@ export async function buildContext(
   }
 
   const participants = new Map<string, Participant>();
+  const apps = new Map<string, string>();
   await Promise.all(
     [...ids].map(async (id) => {
       const u = await directory.lookup(id);
       if (u && !u.isBot) participants.set(id, { id: u.id, name: u.name, tz: u.tz });
+      else if (u) apps.set(id, u.name);
     }),
   );
 
@@ -166,7 +168,10 @@ export async function buildContext(
     const uid = m.user && !m.bot_id ? m.user : null;
     const text = (m.text ?? "").replace(MENTION_RE, (_all, id: string) => {
       const p = participants.get(id);
-      return p ? `@${p.name} (${id})` : "";
+      if (p) return `@${p.name} (${id})`;
+      // Keep who a message is addressed to, but mark apps so they're never read as an owner.
+      const app = apps.get(id);
+      return app ? `@${app} (app, not a person)` : "";
     });
     return {
       ts: m.ts,

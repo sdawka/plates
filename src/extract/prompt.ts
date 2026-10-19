@@ -77,6 +77,9 @@ Rules:
 - inferred_due_at: only when a deadline is stated or clearly implied. Express it in the requester's local time as an ISO date (YYYY-MM-DD, meaning end of day) or YYYY-MM-DDTHH:mm. "EOD" means today at 17:00 local. Resolve relative days ("Friday", "tomorrow") against the current date given below.
 - owner_already_committed: true if the owner already said they will do it ("on it", "will do", "later today").
 - The tag message may contain hints such as "@bob by Friday"; honour them.
+- Which asks to record: if the tag message itself states an ask (e.g. "I need to ask Will about X", "Dana can you send the deck"), record only that ask, plus earlier asks it explicitly points to ("track this", "both of these"). Do not add other, older asks from the conversation. If the tag message only points at the conversation ("@plates", "track this"), record the asks it refers to, usually the most recent ones.
+- Someone writing about their own task ("I need to…", "remind me to…") is asking themselves: the requester and the owner are both that person.
+- Apps and bots (shown as "@Name (app, not a person)", or speaker "bot") are never a requester or an owner. A request addressed to an app is not an ask for a person; leave it out.
 - source_ts MUST be copied exactly from one of the message ids provided. Cite the message that contains the ask.
 - User ids must be copied from the participant list. If you are unsure who the requester or owner is, set that id to null (or give low confidence) and write a specific clarify_question naming the candidates, e.g. "Who's asking: <@U1> or <@U2>?". Use <@ID> syntax for people in clarify_question.
 - Do not invent asks. Chit-chat, status updates and things already done are not asks. If there is no ask, return an empty groups array.

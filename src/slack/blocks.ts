@@ -40,6 +40,7 @@ function pendingHeadline(req: RequestRow, drafts: DraftAsk[]): string {
     return `📋 I read ${plural(drafts.length, "possible ask", "possible asks")} here (tagged by ${mention(req.tagged_by_id)})`;
   }
   const tagged = req.tagged_by_id === req.requester_id ? "" : ` (tagged by ${mention(req.tagged_by_id)})`;
+  if (req.requester_id === req.owner_id) return `📋 Reminder for *${mention(req.owner_id)}*: ${n}${tagged}`;
   return `📋 *${mention(req.requester_id)}* is asking *${mention(req.owner_id)}* for ${n}${tagged}`;
 }
 

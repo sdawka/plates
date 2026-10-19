@@ -127,3 +127,18 @@ describe("tagging @plates in a thread", () => {
     expect(h.requests()).toHaveLength(1);
   });
 });
+
+describe("apps in the thread", () => {
+  it("keeps an app's mention, marked as not a person, and never lists it as a participant", async () => {
+    h.slack.addUser({ id: "UTENDER", name: "tenderai", real_name: "TenderAI", is_bot: true });
+    const root = await h.say({ user: USERS.dana, text: "<@UTENDER> can you exclude intent-to-award notices?" });
+    await h.say({ user: USERS.tara, text: "<@UBOT> I need to ask Bob how to change the rules", thread_ts: root.ts });
+    h.anthropic.queueToolUse("record_asks", { groups: [] });
+    await h.drain();
+
+    const prompt = h.anthropic.requests[0]!.prompt;
+    expect(prompt).toContain("@tenderai (app, not a person) can you exclude");
+    expect(prompt).not.toContain("- UTENDER:");
+    expect(h.anthropic.requests[0]!.system).toMatch(/if the tag message itself states an ask/i);
+  });
+});

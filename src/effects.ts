@@ -1,12 +1,12 @@
 // Executes the Effects returned by the domain service and the extraction module.
 // Each effect runs on its own; a failure is logged and never stops the others.
 
-import { getAsksByRequest, getRequest, updateRequest } from "./domain/repo";
+import { getAsk, getAsksByRequest, getRequest, listEvents, updateRequest } from "./domain/repo";
 import { publishHome } from "./home/home";
 import { syncTracker } from "./trackers";
 import { slackCall } from "./slack/api";
 import { renderDm, renderRequest, type DmContext, type Rendered } from "./slack/blocks";
-import type { Effect, Env, RequestRow } from "./types";
+import type { AskRow, Effect, Env, RequestRow } from "./types";
 
 type Of<K extends Effect["kind"]> = Extract<Effect, { kind: K }>;
 
@@ -67,19 +67,34 @@ async function permalinkFor(env: Env, req: RequestRow): Promise<string | null> {
 }
 
 async function dmEffect(env: Env, effect: Of<"dm">): Promise<void> {
-  const req = await getRequest(env.DB, effect.requestId);
+  const reminderAsks = effect.template === "reminder" ? await loadAsks(env, effect.askIds ?? []) : undefined;
+  // A reminder can span several requests; any one of them anchors the context.
+  const req = await getRequest(env.DB, effect.requestId || (reminderAsks?.[0]?.request_id ?? ""));
   if (!req) return;
   const asks = await getAsksByRequest(env.DB, req.id);
+  const ask = asks.find((a) => a.id === effect.askId) ?? null;
   const ctx: DmContext = {
     req,
     asks,
-    ask: asks.find((a) => a.id === effect.askId) ?? null,
+    ask,
     recipient: effect.userId,
     note: effect.note,
     deadline: effect.deadline,
-    permalink: await permalinkFor(env, req),
+    permalink: effect.template === "reminder" ? null : await permalinkFor(env, req),
+    reminderAsks,
+    actor: effect.template === "action_undone" && ask ? await lastUndoActor(env, ask.id) : undefined,
   };
   const rendered: Rendered | null = renderDm(effect.template, ctx);
   if (!rendered) return;
   await slackCall(env, "chat.postMessage", { channel: effect.userId, unfurl_links: false, ...rendered });
+}
+
+async function loadAsks(env: Env, ids: string[]): Promise<AskRow[]> {
+  const asks = await Promise.all(ids.map((id) => getAsk(env.DB, id)));
+  return asks.filter((a): a is AskRow => a !== null);
+}
+
+async function lastUndoActor(env: Env, askId: string): Promise<string | undefined> {
+  const events = await listEvents(env.DB, askId);
+  return events.filter((e) => e.kind === "undo").at(-1)?.actor_id;
 }

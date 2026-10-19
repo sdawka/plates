@@ -15,12 +15,15 @@ import {
 } from "../domain/repo";
 import { dispatch } from "../effects";
 import { slackCall } from "../slack/api";
-import { TransitionError, type Effect, type Env, type UserPrefsRow } from "../types";
+import { TransitionError, type AskRow, type Effect, type Env, type UserPrefsRow } from "../types";
 import { buildDigest } from "./digest";
+import { claimReminder, listReminderCandidates } from "./queries";
+import { selectDue } from "./reminders";
 import { computeDue, nextAlarmAt, type JobKind, type Snapshot } from "./schedule";
-import { isValidTimeZone } from "./time";
+import { isValidTimeZone, localDayKey } from "./time";
 
 const USER_KEY = "userId";
+const HELD_KEY = "heldBack";
 const BACKOFF_KEY = "backoffUntil";
 const BACKOFF_MS = 5 * 60_000;
 
@@ -45,11 +48,12 @@ export class PlateKeeper extends DurableObject<Env> {
 
   private async snapshot(userId: string): Promise<Snapshot> {
     const prefs = await this.ensurePrefs(userId);
-    const [wake, pendingRequests] = await Promise.all([
+    const [wake, pendingRequests, reminderAsks] = await Promise.all([
       nextSnoozeWake(this.env.DB, userId),
       listPendingToConfirm(this.env.DB, userId),
+      listReminderCandidates(this.env.DB, userId),
     ]);
-    return { now: Date.now(), prefs, nextSnoozeWake: wake, pendingRequests };
+    return { now: Date.now(), prefs, nextSnoozeWake: wake, pendingRequests, reminderAsks };
   }
 
   private async armAlarm(userId: string): Promise<void> {
@@ -98,6 +102,8 @@ export class PlateKeeper extends DurableObject<Env> {
         return this.wakeSnoozes(userId, snap.now);
       case "digest":
         return this.sendDigest(userId, snap.prefs, snap.now);
+      case "reminders":
+        return this.sendReminders(userId, snap.now);
       case "nudge":
         return this.nudge(job.requestId, snap.now);
       case "discard":
@@ -119,9 +125,34 @@ export class PlateKeeper extends DurableObject<Env> {
   }
 
   private async sendDigest(userId: string, prefs: UserPrefsRow, now: number): Promise<void> {
-    const digest = buildDigest(userId, await listPlate(this.env.DB, userId));
+    const held = await this.ctx.storage.get<{ day: string; n: number }>(HELD_KEY);
+    const heldBack = held && held.day === localDayKey(now, prefs.tz) ? held.n : 0;
+    const digest = buildDigest(userId, await listPlate(this.env.DB, userId), heldBack);
     if (digest) await slackCall(this.env, "chat.postMessage", { channel: userId, text: digest.text, blocks: digest.blocks });
-    await upsertPrefs(this.env.DB, { ...prefs, last_digest_at: now });
+    // Fresh prefs: the reminder counters may have moved since the snapshot.
+    await upsertPrefs(this.env.DB, { ...(await getPrefs(this.env.DB, userId)), last_digest_at: now });
+  }
+
+  /**
+   * One DM listing every due ask, up to the daily cap. Each ask's ladder is advanced (claimed) before the
+   * DM goes out, so an alarm retry cannot double-send: delivery is at-most-once.
+   */
+  private async sendReminders(userId: string, now: number): Promise<void> {
+    const prefs = await getPrefs(this.env.DB, userId);
+    const { due, heldBack } = selectDue(await listReminderCandidates(this.env.DB, userId), prefs, now);
+    const day = localDayKey(now, prefs.tz);
+    if (heldBack > 0) await this.ctx.storage.put(HELD_KEY, { day, n: heldBack });
+    else await this.ctx.storage.delete(HELD_KEY);
+
+    const claimed: AskRow[] = [];
+    for (const ask of due) if (await claimReminder(this.env.DB, ask, now)) claimed.push(ask);
+    if (claimed.length === 0) return;
+
+    const sentToday = prefs.reminders_day === day ? prefs.reminders_sent : 0;
+    await upsertPrefs(this.env.DB, { ...prefs, reminders_day: day, reminders_sent: sentToday + claimed.length });
+    await dispatch(this.env, [
+      { kind: "dm", userId, template: "reminder", requestId: claimed[0]!.request_id, askIds: claimed.map((a) => a.id) },
+    ]);
   }
 
   /** Whichever participant's keeper fires first claims nudged_at and notifies both. */

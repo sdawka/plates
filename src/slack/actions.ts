@@ -65,3 +65,19 @@ export const CONFIRM_REACTIONS = {
   yes: ["white_check_mark", "heavy_check_mark", "+1", "ballot_box_with_check"],
   no: ["x", "-1", "heavy_multiplication_x", "negative_squared_cross_mark"],
 } as const;
+
+// ---------- Phase 2 ----------
+
+/** Undo button on "✓ applied" thread lines. value = eventId. */
+export const UNDO_ACTION_ID = "event:undo";
+/** Requester bump: button value = askId; in the ask menu the value is `askx:bump|<askId>`. */
+export const BUMP_ACTION_ID = "askx:bump";
+/** "Did you mean" / "looks done?" proposals. Buttons: value = proposalId. */
+export const PROPOSAL_ACTIONS = {
+  yes: "prop:yes",
+  no: "prop:no",
+  /** static_select; option value = `<proposalId>|<askId>` */
+  pick: "prop:pick",
+} as const;
+export const SETTINGS_OPEN_ACTION_ID = "settings:open";
+export const SETTINGS_CALLBACK_ID = "settings:save";

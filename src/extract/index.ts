@@ -1,6 +1,8 @@
 // Extraction orchestration: turns queue jobs into persisted requests and effects.
 
 import { handleIntentJob } from "../intent";
+import { connectUrl, getUserToken } from "../oauth";
+import { SlackApiError, slackCall } from "../slack/api";
 import { confirmRequest } from "../domain/service";
 import { getRequest, insertRequest, newId, updateRequest } from "../domain/repo";
 import {
@@ -13,9 +15,11 @@ import {
 } from "../types";
 import {
   ChannelUnreadableError,
+  buildContext,
   gatherForTag,
   gatherForThread,
   getPermalink,
+  singleMessage,
   type ConversationContext,
 } from "./context";
 import { callClarify, callExtraction } from "./llm";
@@ -29,6 +33,40 @@ import {
 } from "./validate";
 
 const INVITE_REPLY = "I can't read this channel yet. Please invite me with `/invite @plates` and tag me again.";
+
+const DEAD_TOKEN = new Set(["token_revoked", "invalid_auth", "not_authed", "account_inactive", "token_expired"]);
+type ChannelKind = "im" | "mpim" | "private" | "public" | "unknown";
+
+/**
+ * What kind of conversation the bot can't read. Prefers conversations.info with the tagger's user token, then the
+ * shortcut payload's channel name, then the id prefix (D = DM, G = group DM; C stays "unknown" → invite).
+ */
+async function classifyChannel(env: Env, job: Extract<ExtractJob, { kind: "extract" }>, token: string | null): Promise<ChannelKind> {
+  if (token) {
+    try {
+      const r = await slackCall<{ channel?: { is_im?: boolean; is_mpim?: boolean; is_private?: boolean; is_group?: boolean } }>(
+        { ...env, SLACK_BOT_TOKEN: token },
+        "conversations.info",
+        { channel: job.channelId },
+      );
+      const c = r.channel;
+      if (c) {
+        if (c.is_im) return "im";
+        if (c.is_mpim) return "mpim";
+        return c.is_private || c.is_group ? "private" : "public";
+      }
+    } catch (e) {
+      if (!(e instanceof SlackApiError)) throw e;
+    }
+  }
+  const name = (job as { channelName?: string }).channelName;
+  if (name === "directmessage") return "im";
+  if (name?.startsWith("mpdm-")) return "mpim";
+  if (name === "privategroup") return "private";
+  if (job.channelId.startsWith("D")) return "im";
+  if (job.channelId.startsWith("G")) return "mpim";
+  return "unknown";
+}
 
 const reply = (channelId: string, threadTs: string, text: string): Effect => ({ kind: "thread_reply", channelId, threadTs, text });
 
@@ -102,37 +140,106 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
 
   // Queue redelivery: this exact tag message already produced a request (any status).
   const dup = await env.DB
-    .prepare("SELECT id FROM requests WHERE channel_id = ? AND tag_message_ts = ? LIMIT 1")
-    .bind(job.channelId, job.messageTs)
+    .prepare("SELECT id FROM requests WHERE tag_message_ts = ? AND (channel_id = ? OR tagged_by_id = ?) LIMIT 1")
+    .bind(job.messageTs, job.channelId, job.taggerId)
     .first<{ id: string }>();
   if (dup) return [];
 
   let ctx: ConversationContext;
+  let readEnv: Env = env; // credentials that can read the source conversation
+  let dmFallback = false; // the request must live in the tagger's DM with the bot
+  let kind: ChannelKind = "unknown";
+  let single = false; // only the captured message could be read
   try {
     ctx = await gatherForTag(env, job.channelId, job.threadTs, job.messageTs, job.taggerId);
   } catch (e) {
-    if (e instanceof ChannelUnreadableError) return [reply(job.channelId, threadTs, INVITE_REPLY)];
-    throw e;
+    if (!(e instanceof ChannelUnreadableError)) throw e;
+    if (job.origin !== "shortcut") return [reply(job.channelId, threadTs, INVITE_REPLY)];
+    const token = await getUserToken(env, job.taggerId);
+    kind = await classifyChannel(env, job, token);
+    if (kind !== "im" && kind !== "mpim") return [reply(job.channelId, threadTs, INVITE_REPLY)];
+    dmFallback = true;
+    let viaToken: ConversationContext | null = null;
+    if (token) {
+      const userEnv = { ...env, SLACK_BOT_TOKEN: token };
+      try {
+        viaToken = await gatherForTag(env, job.channelId, job.threadTs, job.messageTs, job.taggerId, userEnv);
+        readEnv = userEnv;
+      } catch (err) {
+        const dead = err instanceof SlackApiError && DEAD_TOKEN.has(err.error);
+        if (!(err instanceof ChannelUnreadableError) && !dead) throw err;
+      }
+    }
+    if (viaToken) ctx = viaToken;
+    else {
+      single = true;
+      ctx = await buildContext(env, singleMessage(job.messageTs, job.sourceUserId ?? job.taggerId, job.text), [job.taggerId]);
+    }
   }
 
   const raw = await callExtraction(
     env,
-    buildExtractPrompt({ ctx, taggerId: job.taggerId, tagText: job.text, tagTs: job.messageTs, now: Date.now() }),
+    buildExtractPrompt({
+      ctx,
+      taggerId: job.taggerId,
+      tagText: job.text,
+      tagTs: job.messageTs,
+      now: Date.now(),
+      origin: job.origin,
+      sourceUserId: job.sourceUserId,
+      singleMessage: single,
+    }),
   );
   const groups = validateGroups(raw, validateCtx(ctx));
-  if (groups.length === 0) return [reply(job.channelId, threadTs, NO_ASK_REPLY)];
 
-  await attachPermalinks(env, job.channelId, groups);
+  let target = { channelId: job.channelId, threadTs };
+  let capturedLink: string | null = null;
+  if (dmFallback) {
+    // The bot can't post in that DM: the request lives in the tagger's DM with the bot.
+    const opened = await slackCall<{ channel?: { id: string } }>(env, "conversations.open", { users: job.taggerId });
+    const dmId = opened.channel?.id;
+    if (!dmId) throw new Error("conversations.open returned no channel");
+    if (groups.length === 0) {
+      await slackCall(env, "chat.postMessage", { channel: dmId, text: NO_ASK_REPLY });
+      return [];
+    }
+    capturedLink = readEnv === env ? null : await getPermalink(readEnv, job.channelId, job.messageTs);
+    const other = job.sourceUserId && job.sourceUserId !== job.taggerId ? job.sourceUserId : null;
+    const where = kind === "im" ? (other ? `your DM with <@${other}>` : "your DM") : "a group DM";
+    const anchor = await slackCall<{ ts: string }>(env, "chat.postMessage", {
+      channel: dmId,
+      text: `From ${where}${capturedLink ? `: ${capturedLink}` : ""}`,
+    });
+    target = { channelId: dmId, threadTs: anchor.ts };
+  } else if (groups.length === 0) {
+    return [reply(job.channelId, threadTs, NO_ASK_REPLY)];
+  }
+
+  await attachPermalinks(readEnv, job.channelId, groups, dmFallback ? { [job.messageTs]: capturedLink } : {});
 
   const effects: Effect[] = [];
   const people: (string | null)[] = [job.taggerId];
   const keepers: (string | null)[] = [];
   for (const g of groups) {
-    const row = newRequestRow(g, { channelId: job.channelId, threadTs, taggerId: job.taggerId, tagMessageTs: job.messageTs });
+    const row = newRequestRow(g, { ...target, taggerId: job.taggerId, tagMessageTs: job.messageTs });
     await insertRequest(env.DB, row);
     effects.push({ kind: "render_request", requestId: row.id });
     people.push(g.requester_id, g.owner_id);
     keepers.push(g.requester_id, g.owner_id);
+  }
+
+  if (single) {
+    const url = await connectUrl(env, job.taggerId);
+    if (url) {
+      try {
+        await slackCall(env, "chat.postMessage", {
+          channel: target.channelId,
+          text: `I could only see the one message. Connect Plates to read the whole DM: <${url}>`,
+        });
+      } catch {
+        // The request is already saved; a missed hint isn't worth a retry.
+      }
+    }
   }
   return [...effects, ...fanOut(people, keepers)];
 }
@@ -164,6 +271,21 @@ async function handleCorrect(env: Env, job: Extract<ExtractJob, { kind: "correct
     if (e instanceof ChannelUnreadableError) return [reply(req.channel_id, req.thread_ts, INVITE_REPLY)];
     throw e;
   }
+
+  // Evidence from a DM we can't re-read (captured via shortcut) survives only as the stored draft.
+  const have = new Set(ctx.messages.map((m) => m.ts));
+  for (const d of drafts) {
+    if (have.has(d.source_ts)) continue;
+    have.add(d.source_ts);
+    ctx.messages.push({
+      ts: d.source_ts,
+      userId: null,
+      name: "earlier message",
+      text: `(original text no longer available; captured as: ${d.title}${d.detail ? ` — ${d.detail}` : ""})`,
+      files: [],
+    });
+  }
+  ctx.messages.sort((a, b) => Number(a.ts) - Number(b.ts));
 
   const raw = await callExtraction(
     env,

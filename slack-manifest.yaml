@@ -16,6 +16,12 @@ features:
       type: message
       callback_id: plates_capture
       description: Turn this message into tracked asks
+  slash_commands:
+    - command: /plates
+      url: WORKER_URL/slack/events
+      description: Put an ask on someone's plate
+      usage_hint: "@bob send the Q3 deck by Friday | settings | help"
+      should_escape: true
 oauth_config:
   scopes:
     bot:
@@ -25,10 +31,19 @@ oauth_config:
       - im:history
       - mpim:history
       - chat:write
+      - commands
       - im:write
       - users:read
       - files:read
       - reactions:read
+      - users:read.email
+    user:
+      - im:history
+      - mpim:history
+      - im:read
+      - mpim:read
+  redirect_urls:
+    - WORKER_URL/oauth/callback
 settings:
   event_subscriptions:
     request_url: WORKER_URL/slack/events

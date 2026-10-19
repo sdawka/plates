@@ -182,9 +182,16 @@ export async function gatherForTag(
   threadTs: string | null,
   messageTs: string,
   taggerId: string,
+  /** Credentials for reading messages (a user token for DMs); names are always resolved with `env`. */
+  readEnv: Env = env,
 ): Promise<ConversationContext> {
-  const raw = threadTs ? await fetchThread(env, channelId, threadTs) : await fetchHistory(env, channelId, messageTs);
+  const raw = threadTs ? await fetchThread(readEnv, channelId, threadTs) : await fetchHistory(readEnv, channelId, messageTs);
   return buildContext(env, raw, [taggerId]);
+}
+
+/** Context built from the one captured message, when nothing else can be read. */
+export function singleMessage(ts: string, userId: string, text: string): SlackMessage[] {
+  return [{ ts, user: userId, text }];
 }
 
 /** Context for re-extraction: the thread, plus the channel history before it if the original tag was top level. */

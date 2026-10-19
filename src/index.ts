@@ -3,6 +3,7 @@
 import { handleOAuth } from "./oauth";
 import { dispatch } from "./effects";
 import { handleExtractJob } from "./extract/index";
+import { handleSlashCommand } from "./slack/commands";
 import { handleEvent, type SlackEvent } from "./slack/events";
 import { handleInteraction, type InteractionPayload } from "./slack/interactions";
 import { verifySlackSignature } from "./slack/verify";
@@ -35,9 +36,10 @@ async function handleSlackRequest(req: Request, env: Env, ctx: ExecutionContext)
   const contentType = req.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) return handleEnvelope(JSON.parse(body) as EventEnvelope, env, ctx);
 
-  const payload = new URLSearchParams(body).get("payload");
+  const params = new URLSearchParams(body);
+  const payload = params.get("payload");
   if (payload) return handleInteraction(env, ctx, JSON.parse(payload) as InteractionPayload);
-  return text("ok"); // slash commands arrive here too; not handled until Phase 2
+  return handleSlashCommand(env, ctx, params) ?? text("ok");
 }
 
 function handleEnvelope(envelope: EventEnvelope, env: Env, ctx: ExecutionContext): Response {

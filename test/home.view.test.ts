@@ -81,10 +81,10 @@ describe("buildHomeView", () => {
     expect(text(blocks)).toContain("https://x.test");
   });
 
-  it("shows waiting asks with withdraw only and their age", () => {
+  it("shows waiting asks with bump and withdraw, and their age", () => {
     const waiting = ask({ id: "w", requester_id: "UME", owner_id: "UBOB", holder_id: "UBOB", state: "accepted", created_at: NOW - 3 * DAY });
     const blocks = buildHomeView({ ...empty, waiting: [waiting] }, "UME", NOW).blocks;
-    expect(buttonIds(find(blocks, "wait_actions:")[0])).toEqual(["ask:withdraw"]);
+    expect(buttonIds(find(blocks, "wait_actions:")[0])).toEqual(["askx:bump", "ask:withdraw"]);
     expect(text(blocks)).toContain("asked 3d ago");
     expect(text(blocks)).toContain("<@UBOB>");
   });

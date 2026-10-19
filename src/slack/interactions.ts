@@ -3,12 +3,20 @@
 // state change inline so TransitionErrors and validation problems can be shown inside the modal.
 
 import { dispatch } from "../effects";
-import { applyAction, confirmDiscarded } from "../domain/service";
-import { getAsk, getRequest, updateRequest } from "../domain/repo";
+import { applyAction, bumpAsk, confirmDiscarded } from "../domain/service";
+import { getAsk, getPrefs, getRequest, updateRequest, upsertPrefs } from "../domain/repo";
+import { onProposalNo, onProposalPick, onProposalYes, onUndoClick, type ClickTarget } from "../intent/interact";
 import { availableActions } from "../domain/transitions";
 import { TransitionError, type AskAction, type Effect, type Env, type RequestRow } from "../types";
 import { slackCall } from "./api";
-import { NEEDS_MODAL, REQ_ACTIONS, parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta } from "./actions";
+import {
+  BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID,
+  parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta,
+} from "./actions";
+import { openSettings } from "./commands";
+import { OAUTH_DISCONNECT_ACTION_ID } from "./dmaccess";
+import { disconnect } from "../oauth";
+import { parseSettingsSubmission } from "./settings";
 import { ASK_MENU_ACTION_ID } from "./blocks";
 import {
   EDIT_CALLBACK_ID, FIRST_BLOCK, buildAskModal, buildEditModal, parseAskSubmission, parseEditSubmission,
@@ -28,7 +36,8 @@ export interface BlockActionsPayload extends PayloadBase {
   type: "block_actions";
   actions: ActionItem[];
   channel?: { id: string };
-  container?: { channel_id?: string };
+  container?: { channel_id?: string; message_ts?: string };
+  message?: { ts?: string };
   view?: { type?: string };
 }
 export interface ViewSubmissionPayload extends PayloadBase {
@@ -39,8 +48,8 @@ export interface ViewSubmissionPayload extends PayloadBase {
 export interface MessageActionPayload extends PayloadBase {
   type: "message_action";
   callback_id: string;
-  channel: { id: string };
-  message: { ts: string; thread_ts?: string; text?: string };
+  channel: { id: string; name?: string };
+  message: { ts: string; thread_ts?: string; text?: string; user?: string };
 }
 export type InteractionPayload = BlockActionsPayload | ViewSubmissionPayload | MessageActionPayload;
 
@@ -76,6 +85,9 @@ async function onCaptureShortcut(env: Env, p: MessageActionPayload): Promise<voi
       messageTs: p.message.ts,
       taggerId: p.user.id,
       text: p.message.text ?? "",
+      origin: "shortcut",
+      channelName: p.channel.name,
+      sourceUserId: p.message.user,
     });
   } catch (err) {
     console.error("capture shortcut enqueue failed", err);
@@ -128,14 +140,40 @@ async function onBlockAction(env: Env, p: BlockActionsPayload): Promise<void> {
 
   if (action.action_id === REQ_ACTIONS.confirm && action.value) return confirmRequestAction(env, p, action.value);
   if (action.action_id === REQ_ACTIONS.edit && action.value) return openEdit(env, p, action.value);
+  if (action.action_id === UNDO_ACTION_ID && action.value) return withClick(p, (c) => onUndoClick(env, c, action.value!));
+  if (action.action_id === PROPOSAL_ACTIONS.yes && action.value) return withClick(p, (c) => onProposalYes(env, c, action.value!));
+  if (action.action_id === PROPOSAL_ACTIONS.no && action.value) return withClick(p, (c) => onProposalNo(env, c, action.value!));
+  if (action.action_id === PROPOSAL_ACTIONS.pick && action.selected_option) {
+    const value = action.selected_option.value;
+    return withClick(p, (c) => onProposalPick(env, c, value));
+  }
+  if (action.action_id === BUMP_ACTION_ID && action.value) return bump(env, p, action.value);
+  if (action.action_id === OAUTH_DISCONNECT_ACTION_ID) {
+    await disconnect(env, p.user.id);
+    return dispatch(env, [{ kind: "refresh_home", userId: p.user.id }]);
+  }
+  if (action.action_id === SETTINGS_OPEN_ACTION_ID) return openSettings(env, p.trigger_id ?? "", p.user.id);
   if (action.action_id === ASK_MENU_ACTION_ID) {
     const [actionId, askId] = (action.selected_option?.value ?? "").split("|");
+    if (actionId === BUMP_ACTION_ID && askId) return bump(env, p, askId);
     const kind = actionId ? parseAskActionId(actionId) : null;
     if (kind && askId) return askAction(env, p, kind, askId);
     return;
   }
   const kind = parseAskActionId(action.action_id);
   if (kind && action.value) return askAction(env, p, kind, action.value);
+}
+
+/** Message-bound clicks need the channel and ts of the message the button sits on. */
+async function withClick(p: BlockActionsPayload, fn: (c: ClickTarget) => Promise<void>): Promise<void> {
+  const channelId = p.channel?.id ?? p.container?.channel_id;
+  const messageTs = p.container?.message_ts ?? p.message?.ts;
+  if (!channelId || !messageTs) return;
+  await fn({ userId: p.user.id, channelId, messageTs });
+}
+
+async function bump(env: Env, p: BlockActionsPayload, askId: string): Promise<void> {
+  await dispatch(env, await bumpAsk(env, askId, p.user.id, viaOf(p)));
 }
 
 async function confirmRequestAction(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
@@ -175,10 +213,12 @@ async function onViewSubmission(env: Env, ctx: ExecutionContext, p: ViewSubmissi
   const id = p.view.callback_id;
   try {
     if (id === EDIT_CALLBACK_ID) return await submitEdit(env, ctx, p);
+    if (id === SETTINGS_CALLBACK_ID) return await submitSettings(env, ctx, p);
     const kind = parseModalCallbackId(id);
     return kind ? await submitAskModal(env, ctx, p, kind) : ok();
   } catch (err) {
-    const field = id === EDIT_CALLBACK_ID ? "requester" : FIRST_BLOCK[parseModalCallbackId(id) ?? "accept_now"];
+    const field =
+      id === EDIT_CALLBACK_ID ? "requester" : id === SETTINGS_CALLBACK_ID ? "tz" : FIRST_BLOCK[parseModalCallbackId(id) ?? "accept_now"];
     if (err instanceof TransitionError) return errorsResponse({ [field]: err.userMessage });
     console.error("view_submission failed", err);
     return errorsResponse({ [field]: "Something went wrong. Please try again." });
@@ -213,6 +253,19 @@ async function submitEdit(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayl
       { kind: "refresh_home", userId },
       { kind: "reschedule", userId },
     ]),
+  ];
+  ctx.waitUntil(dispatch(env, effects));
+  return ok();
+}
+
+async function submitSettings(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayload): Promise<Response> {
+  const prev = await getPrefs(env.DB, p.user.id);
+  const parsed = parseSettingsSubmission(p.view.state.values, prev);
+  if (!parsed.ok) return errorsResponse(parsed.errors);
+  await upsertPrefs(env.DB, parsed.value);
+  const effects: Effect[] = [
+    { kind: "reschedule", userId: p.user.id },
+    { kind: "refresh_home", userId: p.user.id },
   ];
   ctx.waitUntil(dispatch(env, effects));
   return ok();

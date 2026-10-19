@@ -1,12 +1,13 @@
 // Slack Events API handlers. Everything here runs after the 3s ack (ctx.waitUntil).
 
 import { dispatch } from "../effects";
-import { getRequestByMessage, getRequestsInThread } from "../domain/repo";
+import { getAsksByRequest, getRequestByMessage, getRequestsInThread } from "../domain/repo";
 import { confirmDiscarded, confirmRequest } from "../domain/service";
 import { publishHome } from "../home/home";
 import { TransitionError, type Effect, type Env, type RequestRow } from "../types";
 import { slackCall } from "./api";
 import { CONFIRM_REACTIONS } from "./actions";
+import { buildIntentJob, type MessageFile } from "./parse";
 
 interface MessageLike {
   type: "app_mention" | "message";
@@ -17,6 +18,8 @@ interface MessageLike {
   bot_id?: string;
   subtype?: string;
   text?: string;
+  channel_type?: string;
+  files?: MessageFile[];
 }
 interface ReactionAdded {
   type: "reaction_added";
@@ -67,16 +70,51 @@ async function onMention(env: Env, e: MessageLike): Promise<void> {
 const involved = (req: RequestRow, userId: string) =>
   userId === req.tagged_by_id || userId === req.requester_id || userId === req.owner_id;
 
+/** Human messages only; a file upload arrives as subtype "file_share". Edits, joins, bot posts are ignored. */
+const isHumanMessage = (e: MessageLike, ec: EventContext) =>
+  (!e.subtype || e.subtype === "file_share") && !e.bot_id && !!e.user && e.user !== ec.botUserId;
+
 async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<void> {
-  if (e.subtype || e.bot_id || !e.user || e.user === ec.botUserId) return;
+  if (!isHumanMessage(e, ec) || !e.user) return;
+  const user = e.user;
+
+  // A top-level message in the bot's own DM is a capture.
+  if (e.channel_type === "im" && (!e.thread_ts || e.thread_ts === e.ts)) {
+    if (!(e.text ?? "").trim()) return;
+    await env.EXTRACT_QUEUE.send({
+      kind: "extract",
+      channelId: e.channel,
+      threadTs: null,
+      messageTs: e.ts,
+      taggerId: user,
+      text: e.text ?? "",
+      origin: "dm",
+    });
+    return;
+  }
+
   if (!e.thread_ts || e.thread_ts === e.ts) return;
   if (ec.botUserId && e.text?.includes(`<@${ec.botUserId}>`)) return; // arrives as app_mention
 
   const requests = await getRequestsInThread(env.DB, e.channel, e.thread_ts);
   const pending = requests.filter((r) => r.status === "pending_confirmation").at(-1);
-  if (!pending || !involved(pending, e.user)) return;
-  // Phase 1 only corrects pending confirmations. Acting on other replies is Phase 2.
-  await env.EXTRACT_QUEUE.send({ kind: "correct", requestId: pending.id, userId: e.user, text: e.text ?? "", messageTs: e.ts });
+  if (pending && involved(pending, user)) {
+    await env.EXTRACT_QUEUE.send({ kind: "correct", requestId: pending.id, userId: user, text: e.text ?? "", messageTs: e.ts });
+    return;
+  }
+
+  // Confirmed request: the requester, the owner, or an ask's current owner can act by replying.
+  for (const req of requests.filter((r) => r.status === "confirmed")) {
+    let eligible = user === req.requester_id || user === req.owner_id;
+    if (!eligible) {
+      const asks = await getAsksByRequest(env.DB, req.id);
+      eligible = asks.some((a) => a.owner_id === user || a.requester_id === user);
+    }
+    if (eligible) {
+      await env.EXTRACT_QUEUE.send(buildIntentJob({ channel: e.channel, ts: e.ts, thread_ts: e.thread_ts, user, text: e.text, files: e.files }));
+      return;
+    }
+  }
 }
 
 // ---------- reaction_added ----------

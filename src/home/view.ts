@@ -1,8 +1,10 @@
 // Pure Home tab renderer: data in, Block Kit view out. No I/O, no Workers imports.
 
-import { SIZE_LABEL, type AskRow, type AskState, type DraftAsk, type RequestRow, type Size, type Urgency } from "../types";
+import { OWNER_PLATE_STATES, SIZE_LABEL, type AskRow, type AskState, type DraftAsk, type RequestRow, type Size, type Urgency } from "../types";
 import { availableActions } from "../domain/transitions";
-import { ACTION_LABEL, REQ_ACTIONS, askActionId, type AskActionKind } from "../slack/actions";
+import { dmAccessBlocks, type DmAccess } from "../slack/dmaccess";
+import { BUMP_INTERVAL_MS } from "../domain/service";
+import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, SETTINGS_OPEN_ACTION_ID, askActionId, type AskActionKind } from "../slack/actions";
 
 export type Block = Record<string, unknown>;
 export interface View {
@@ -14,6 +16,7 @@ export interface HomeData {
   plate: AskRow[]; // asks the viewer holds
   waiting: AskRow[]; // asks the viewer made, held by someone else
   unconfirmed: RequestRow[];
+  dm?: DmAccess; // DM access row; omitted in tests / when unknown
 }
 
 export const MAX_BLOCKS = 100;
@@ -125,7 +128,14 @@ function metaParts(ask: AskRow): string[] {
   return parts;
 }
 
-const sourceLink = (ask: AskRow): string | null => (ask.source_permalink ? `<${ask.source_permalink}|source message>` : null);
+/** Source message and, when the ask is mirrored to Jira / Linear, the ticket ("jira:PROJ-12" → PROJ-12). */
+const sourceLink = (ask: AskRow): string | null => {
+  const parts = [
+    ask.source_permalink ? `<${ask.source_permalink}|source message>` : null,
+    ask.tracker_url ? `<${ask.tracker_url}|${esc(ask.tracker_ref?.split(":").slice(1).join(":") || "ticket")}>` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+};
 
 interface Unit {
   blocks: Block[];
@@ -198,10 +208,24 @@ function waitingUnit(ask: AskRow, viewer: string, now: number): Unit {
   if (ask.deadline_change_count > 0) parts.push(`moved ×${ask.deadline_change_count}`);
   lines.push(parts.join(" · "));
   const extra = [`asked ${formatAge(now - ask.created_at)} ago`, `last activity ${formatAge(now - ask.updated_at)} ago`];
+  // Only asks sitting on the owner's plate can be bumped, once a day.
+  const bumpable = OWNER_PLATE_STATES.includes(ask.state) && viewer === ask.requester_id;
+  const bumpedRecently = ask.last_bumped_at !== null && now - ask.last_bumped_at < BUMP_INTERVAL_MS;
+  if (bumpable && bumpedRecently) extra.push("bumped today");
   const link = sourceLink(ask);
   if (link) extra.push(link);
   const blocks: Block[] = [section(lines.join("\n"), `wait:${ask.id}`), context(extra.join(" · "))];
   const actions = actionsBlock(ask, viewer, `wait_actions:${ask.id}`);
+  if (bumpable && !bumpedRecently) {
+    const bump = {
+      type: "button",
+      action_id: BUMP_ACTION_ID,
+      text: { type: "plain_text", text: "Bump", emoji: true },
+      value: ask.id,
+    };
+    if (actions) (actions.elements as Block[]).unshift(bump);
+    else blocks.push({ type: "actions", block_id: `wait_actions:${ask.id}`, elements: [bump] });
+  }
   if (actions) blocks.push(actions);
   return { blocks };
 }
@@ -303,10 +327,16 @@ export function buildHomeView(data: HomeData, viewerId: string, now: number): Vi
   const blocks: Block[] = [
     header("Your plate"),
     section(summaryLine(data.plate)),
+    {
+      type: "actions",
+      block_id: "home_settings",
+      elements: [{ type: "button", action_id: SETTINGS_OPEN_ACTION_ID, text: { type: "plain_text", text: "⚙ Settings", emoji: true }, value: "open" }],
+    },
     ...renderSection("Needs your response", needs.map((a) => responseUnit(a, viewerId)), "Nothing waiting on you. 🎉", BUDGET.response),
     ...renderSection("On my plate", onPlate.map((a) => plateUnit(a, viewerId, now)), "Your plate is clear.", BUDGET.plate),
     ...renderSection("Waiting on others", data.waiting.map((a) => waitingUnit(a, viewerId, now)), "You aren't waiting on anyone.", BUDGET.waiting),
     ...renderSection("Unconfirmed", data.unconfirmed.map((r) => unconfirmedUnit(r, viewerId)), "No unconfirmed requests.", BUDGET.unconfirmed),
+    ...dmAccessBlocks(data.dm),
   ];
   return { type: "home", blocks: blocks.slice(0, MAX_BLOCKS) };
 }

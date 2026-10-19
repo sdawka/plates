@@ -2,8 +2,8 @@
 // No I/O and no cloudflare:workers imports, so these are unit-testable in node.
 
 import { availableActions } from "../domain/transitions";
-import type { AskRow, DmTemplate, DraftAsk, RequestRow } from "../types";
-import { ACTION_LABEL, REQ_ACTIONS, askActionId, type AskActionKind } from "./actions";
+import { OWNER_PLATE_STATES, type AskRow, type DmTemplate, type DraftAsk, type RequestRow } from "../types";
+import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, askActionId, type AskActionKind } from "./actions";
 import { dateToken, esc, isHttpUrl, link, mention, plural, sizeUrgency, truncate } from "./format";
 
 export type Block = Record<string, unknown>;
@@ -104,13 +104,11 @@ export function menuActions(ask: AskRow): AskActionKind[] {
 
 function askMenu(ask: AskRow): Block | null {
   const kinds = menuActions(ask);
-  if (kinds.length === 0) return null;
-  return {
-    type: "static_select",
-    action_id: ASK_MENU_ACTION_ID,
-    placeholder: plain("Actions"),
-    options: kinds.map((k) => ({ text: plain(ACTION_LABEL[k]), value: `ask:${k}|${ask.id}` })),
-  };
+  const options = kinds.map((k) => ({ text: plain(ACTION_LABEL[k]), value: `ask:${k}|${ask.id}` }));
+  // The requester can nudge an ask that sits on the owner's plate; the handler checks who clicked.
+  if (OWNER_PLATE_STATES.includes(ask.state)) options.push({ text: plain("Bump"), value: `${BUMP_ACTION_ID}|${ask.id}` });
+  if (options.length === 0) return null;
+  return { type: "static_select", action_id: ASK_MENU_ACTION_ID, placeholder: plain("Actions"), options };
 }
 
 function askLine(ask: AskRow): string {
@@ -148,6 +146,10 @@ export interface DmContext {
   recipient: string;
   note?: string;
   permalink: string | null;
+  /** reminder only: the asks that are due, in the order to list them. */
+  reminderAsks?: AskRow[];
+  /** action_undone only: who undid it. */
+  actor?: string;
   /** deadline_changed only. `from` is undefined when the previous deadline is unknown. */
   deadline?: { from?: number | null; to: number | null };
 }
@@ -249,10 +251,86 @@ function nudgeDm(c: DmContext): Rendered {
   };
 }
 
+// ---------- Phase 2 DMs ----------
+
+/** After this many snoozes the reminder pushes toward a deadline, a redirect or a rejection. */
+export const SNOOZE_NUDGE_AT = 3;
+const MAX_REMINDER_ASKS = 15; // two blocks each, inside Slack's 50-block message limit
+
+const REMINDER_OWNER_ORDER: AskActionKind[] = ["accept_now", "accept_later", "done", "ack", "set_deadline", "snooze"];
+const REQUESTER_PLATE_BUTTONS: AskActionKind[] = ["close", "put_back", "redirect"];
+
+/** Buttons for one ask in a reminder. Pure so the 3-snooze ordering is testable. */
+export function reminderButtons(ask: AskRow, viewer: string): { kinds: AskActionKind[]; labels: Partial<Record<AskActionKind, string>> } {
+  const available = availableActions(ask, viewer);
+  if (ask.holder_id !== viewer || viewer !== ask.owner_id) {
+    return { kinds: REQUESTER_PLATE_BUTTONS.filter((k) => available.includes(k)), labels: {} };
+  }
+  if (ask.snooze_count >= SNOOZE_NUDGE_AT) {
+    // A proposed ask has no set_deadline; accept_later asks for the same date.
+    const deadline: AskActionKind = available.includes("set_deadline") ? "set_deadline" : "accept_later";
+    const kinds = [deadline, "redirect", "reject", "snooze"].filter((k): k is AskActionKind => available.includes(k as AskActionKind));
+    return { kinds, labels: { accept_later: "Set deadline", snooze: "Snooze anyway" } };
+  }
+  const kinds = REMINDER_OWNER_ORDER.filter((k) => available.includes(k));
+  if (ask.state === "proposed" && available.includes("reject")) kinds.push("reject");
+  return { kinds, labels: {} };
+}
+
+function reminderItem(ask: AskRow, viewer: string): Block[] {
+  const onOwner = ask.holder_id === ask.owner_id;
+  const who = onOwner ? `from ${mention(ask.requester_id)}` : `${mention(ask.owner_id)} · ${askStatusText(ask)}`;
+  const meta = [who, sizeUrgency(ask)];
+  if (ask.deadline_at !== null) meta.push(`due ${dateToken(ask.deadline_at)}`);
+  if (ask.snooze_count > 0) meta.push(`💤×${ask.snooze_count}`);
+  const nudge = onOwner && ask.snooze_count >= SNOOZE_NUDGE_AT
+    ? `\n_Snoozed ${ask.snooze_count} times. Pick a deadline, hand it off, or say no?_`
+    : "";
+  const { kinds, labels } = reminderButtons(ask, viewer);
+  return compact([
+    section(`*${esc(ask.title)}*\n${meta.join(" · ")}${nudge}`),
+    askActions(ask, kinds, labels),
+  ]);
+}
+
+function reminderDm(c: DmContext): Rendered | null {
+  const asks = (c.reminderAsks ?? []).filter((a) => a.state !== "closed" && a.state !== "withdrawn");
+  if (asks.length === 0) return null;
+  const shown = asks.slice(0, MAX_REMINDER_ASKS);
+  const head = `⏰ *Reminder:* ${plural(asks.length, "ask is", "asks are")} waiting on you`;
+  return {
+    text: `Reminder: ${plural(asks.length, "ask is", "asks are")} waiting on you`,
+    blocks: [
+      section(head),
+      ...shown.flatMap((a) => reminderItem(a, c.recipient)),
+      ...(asks.length > shown.length ? [context(`…and ${asks.length - shown.length} more on your Home tab.`)] : []),
+    ],
+  };
+}
+
+function bumpDm(c: DmContext, ask: AskRow): Rendered {
+  const { kinds, labels } = reminderButtons(ask, c.recipient);
+  return {
+    text: `${ask.title}: bumped`,
+    blocks: compact([
+      section(`👋 ${mention(ask.requester_id)} bumped *${esc(ask.title)}*${threadLink(c.permalink)}\n${askStatusText(ask)}`),
+      askActions(ask, kinds, labels),
+    ]),
+  };
+}
+
+function undoneDm(c: DmContext, ask: AskRow): Rendered {
+  const label = c.note && c.note in ACTION_LABEL ? ACTION_LABEL[c.note as AskActionKind] : null;
+  const what = label ? `*${label}*` : "their last action";
+  const text = `${c.actor ? mention(c.actor) : "Someone"} undid ${what} on *${esc(ask.title)}*`;
+  return { text: text.replace(/[*]/g, ""), blocks: [section(`↩︎ ${text}${threadLink(c.permalink)}`)] };
+}
+
 /** Returns null when the template needs an ask and there isn't one. */
 export function renderDm(template: DmTemplate, c: DmContext): Rendered | null {
   if (template === "request_proposed") return requestProposedDm(c);
   if (template === "confirm_nudge") return nudgeDm(c);
+  if (template === "reminder") return reminderDm(c);
   const ask = c.ask;
   if (!ask) return null;
   switch (template) {
@@ -262,9 +340,7 @@ export function renderDm(template: DmTemplate, c: DmContext): Rendered | null {
     case "deadline_changed": return deadlineDm(c, ask);
     case "ask_withdrawn": return withdrawnDm(c, ask);
     case "ask_proposed": return askProposedDm(c, ask);
-    case "reminder":
-    case "bump":
-    case "action_undone":
-      return null; // Phase 2: rendered by the conversational agent
+    case "bump": return bumpDm(c, ask);
+    case "action_undone": return undoneDm(c, ask);
   }
 }

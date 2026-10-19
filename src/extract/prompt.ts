@@ -101,16 +101,41 @@ function nowBlock(ctx: ConversationContext, taggerId: string, now: number): stri
   return `Current date: ${weekday} ${date} (in ${tz}, the tagger's time zone).`;
 }
 
+function originBlock(a: { origin?: string; taggerId: string; tagTs: string; sourceUserId?: string; singleMessage?: boolean; ctx: ConversationContext }): string {
+  const name = (id: string) => `${a.ctx.participants.get(id)?.name ?? id} (${id})`;
+  let out = "";
+  switch (a.origin) {
+    case "shortcut": {
+      const author = a.sourceUserId ?? a.taggerId;
+      out = `How this started: ${name(a.taggerId)} selected message id ${a.tagTs}, written by ${name(author)}, with the "capture" message shortcut. That message is the primary statement of the ask; the rest of the conversation is context.`;
+      break;
+    }
+    case "command":
+      out = `How this started: ${name(a.taggerId)} typed a /plates command. The tag message text is the command and is the primary statement of the ask. The thread is Plates' own "via /plates" message, which is not shown.`;
+      break;
+    case "dm":
+      out = `How this started: ${name(a.taggerId)} sent you a direct message. That message (id ${a.tagTs}) is the primary statement of the ask. Unless it says otherwise, the requester is its author.`;
+      break;
+  }
+  if (a.singleMessage) out += `${out ? "\n" : ""}Only this one message could be read; do not guess at what came before it. If the requester or owner is not evident from it, leave that id null and ask.`;
+  return out;
+}
+
 export function buildExtractPrompt(args: {
   ctx: ConversationContext;
   taggerId: string;
   tagText: string;
   tagTs: string;
   now: number;
+  origin?: "mention" | "shortcut" | "command" | "dm";
+  sourceUserId?: string;
+  /** True when only the captured message could be read. */
+  singleMessage?: boolean;
 }): string {
   const { ctx, taggerId, tagText, tagTs, now } = args;
   const taggerName = ctx.participants.get(taggerId)?.name ?? taggerId;
   return `${nowBlock(ctx, taggerId, now)}
+${originBlock(args)}
 
 Participants:
 ${participantsBlock(ctx)}

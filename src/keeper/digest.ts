@@ -68,7 +68,7 @@ function section(title: string, asks: AskRow[], userId: string): Record<string, 
 const oldestFirst = (a: AskRow, b: AskRow) => a.created_at - b.created_at;
 
 /** Null when there is nothing on the user's plate (the digest is skipped). */
-export function buildDigest(userId: string, plate: AskRow[]): Digest | null {
+export function buildDigest(userId: string, plate: AskRow[], heldBack = 0): Digest | null {
   const mine = plate.filter((a) => a.holder_id === userId);
   const needs = mine.filter((a) => NEEDS_RESPONSE.includes(a.state)).sort(oldestFirst);
   const onPlate = mine.filter((a) => ON_MY_PLATE.includes(a.state)).sort(oldestFirst);
@@ -79,9 +79,11 @@ export function buildDigest(userId: string, plate: AskRow[]): Digest | null {
   ];
   if (needs.length > 0) blocks.push(...section("Needs your response", needs, userId));
   if (onPlate.length > 0) blocks.push(...section("On my plate", onPlate, userId));
+  const footer = ["Open Plates' Home tab to manage these."];
+  if (heldBack > 0) footer.unshift(`Reminders held back today: ${heldBack}`);
   blocks.push({
     type: "context",
-    elements: [{ type: "mrkdwn", text: "Open Plates' Home tab to manage these." }],
+    elements: [{ type: "mrkdwn", text: footer.join("\n") }],
   });
 
   return {

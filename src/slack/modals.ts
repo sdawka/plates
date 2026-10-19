@@ -19,6 +19,7 @@ export interface InputValue {
   selected_option?: { value: string } | null;
   selected_options?: { value: string }[] | null;
   selected_user?: string | null;
+  selected_time?: string | null;
 }
 export type ViewValues = Record<string, Record<string, InputValue | undefined> | undefined>;
 

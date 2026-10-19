@@ -1,12 +1,13 @@
 // Pure scheduling: what is due now and when the next alarm should fire. No Workers imports.
-// Phase 2 (deadline reminder ladder, daily cap) adds entries in timeline().
 
-import type { RequestRow, UserPrefsRow } from "../types";
+import type { AskRow, RequestRow, UserPrefsRow } from "../types";
+import { nextReminderRun } from "./reminders";
 import { isWorkingDay, localDayKey, localTimeOnDay, parseHHMM, startOfNextWorkingDay } from "./time";
 
 export type JobKind =
   | { kind: "wake" }
   | { kind: "digest" }
+  | { kind: "reminders" }
   | { kind: "nudge"; requestId: string }
   | { kind: "discard"; requestId: string };
 
@@ -15,6 +16,8 @@ export interface Snapshot {
   prefs: UserPrefsRow;
   nextSnoozeWake: number | null;
   pendingRequests: RequestRow[];
+  /** Asks on this user's plate that the reminder ladder may cover. */
+  reminderAsks?: AskRow[];
 }
 
 export interface TimelineEntry {
@@ -49,6 +52,8 @@ export function confirmDeadline(req: RequestRow, prefs: UserPrefsRow): TimelineE
 export function timeline(s: Snapshot): TimelineEntry[] {
   const entries: TimelineEntry[] = [{ at: nextDigestAt(s.now, s.prefs), job: { kind: "digest" } }];
   if (s.nextSnoozeWake != null) entries.push({ at: s.nextSnoozeWake, job: { kind: "wake" } });
+  const reminderAt = nextReminderRun(s.reminderAsks ?? [], s.prefs, s.now);
+  if (reminderAt != null) entries.push({ at: reminderAt, job: { kind: "reminders" } });
   for (const req of s.pendingRequests) entries.push(confirmDeadline(req, s.prefs));
   return entries;
 }

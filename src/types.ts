@@ -24,6 +24,7 @@ export interface Env {
   JIRA_EMAIL?: string;
   JIRA_API_TOKEN?: string;
   JIRA_PROJECT_KEY?: string;
+  JIRA_ISSUE_TYPE?: string; // default "Task"
   LINEAR_API_KEY?: string;
   LINEAR_TEAM_ID?: string;
   LINEAR_API_URL?: string; // default https://api.linear.app/graphql
@@ -252,6 +253,8 @@ export type ExtractJob =
       origin?: "mention" | "shortcut" | "command" | "dm";
       /** Author of the captured message (shortcut), when known. */
       sourceUserId?: string;
+      /** Channel name from the shortcut payload ("directmessage", "mpdm-…"), used to classify DMs. */
+      channelName?: string;
     }
   | {
       kind: "correct"; // plain-language reply to a pending confirmation

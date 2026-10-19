@@ -41,7 +41,27 @@ export const parseModalCallbackId = (id: string): AskActionKind | null =>
 export interface ModalMeta {
   askId: string;
   via: "button" | "home" | "dm";
+  /** The DM the button sat on, settled once the modal is submitted. */
+  msg?: { channel: string; ts: string };
 }
+
+/** What a DM says in place of its buttons once one was used, for the person who used it. */
+export const ACTION_DONE_LABEL: Record<AskActionKind, string> = {
+  accept_now: "✅ You're on it",
+  accept_later: "✅ Accepted",
+  done: "✅ Marked done",
+  ack: "✅ Acknowledged",
+  reject: "↩️ Rejected",
+  send_back: "❓ Sent back with a question",
+  set_deadline: "📅 Deadline updated",
+  snooze: "💤 Snoozed",
+  set_estimate: "✏️ Size/urgency updated",
+  redirect: "➡️ Handed over",
+  close: "✅ Closed",
+  put_back: "↩️ Put back",
+  withdraw: "🗑️ Withdrawn",
+  wake: "⏰ Woken up",
+};
 
 /** Button labels, phrased for the person who sees them. */
 export const ACTION_LABEL: Record<AskActionKind, string> = {

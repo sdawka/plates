@@ -163,6 +163,18 @@ function ownerButtons(ask: AskRow, viewer: string): Block | null {
   return askActions(ask, availableActions(ask, viewer).filter((k) => wanted.includes(k)));
 }
 
+/**
+ * What replaces an ask's buttons in a DM after `viewer` used one: a line saying what happened and where the ask
+ * stands, then the buttons that make sense next (Done after Accept, and so on). Block ids stay `a:<id>`.
+ */
+export function settledAskBlocks(ask: AskRow, viewer: string, label: string): Block[] {
+  const next = viewer === ask.owner_id && OWNER_PLATE_STATES.includes(ask.state)
+    ? ownerButtons(ask, viewer)
+    : askActions(ask, availableActions(ask, viewer).filter((k) => ["close", "put_back", "redirect"].includes(k)));
+  const line = `${label} · now ${askStatusText(ask)}`;
+  return compact([{ ...context(line), block_id: `a:${ask.id}:status` }, next]);
+}
+
 function requestProposedDm(c: DmContext): Rendered {
   const open = c.asks.filter((a) => a.state === "proposed");
   const head = `📥 *${mention(c.req.requester_id ?? c.req.tagged_by_id)}* asked you for ${plural(open.length, "thing", "things")}${threadLink(c.permalink)}`;

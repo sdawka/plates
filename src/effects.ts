@@ -5,7 +5,7 @@ import { getAsk, getAsksByRequest, getRequest, listEvents } from "./domain/repo"
 import { publishHome } from "./home/home";
 import { syncTracker } from "./trackers";
 import { slackCall } from "./slack/api";
-import { renderDm, renderRequest, type DmContext, type Rendered } from "./slack/blocks";
+import { renderDm, renderRequest, settledAskBlocks, type DmContext, type Rendered } from "./slack/blocks";
 import type { AskRow, Effect, Env, RequestRow } from "./types";
 
 type Of<K extends Effect["kind"]> = Extract<Effect, { kind: K }>;
@@ -36,7 +36,29 @@ function run(env: Env, effect: Effect): Promise<unknown> {
     case "thread_reply":
       return slackCall(env, "chat.postMessage", { channel: effect.channelId, thread_ts: effect.threadTs, text: effect.text });
     case "tracker_sync": return syncTracker(env, effect.askId);
+    case "settle_dm": return settleDm(env, effect);
   }
+}
+
+/** Replaces the used buttons in a DM with what happened and the next buttons, so the DM never offers a done move. */
+async function settleDm(env: Env, effect: Of<"settle_dm">): Promise<void> {
+  const found = await slackCall<{ messages?: { ts: string; text?: string; blocks?: Record<string, unknown>[] }[] }>(env, "conversations.history", {
+    channel: effect.channelId,
+    latest: effect.ts,
+    inclusive: true,
+    limit: 1,
+  });
+  const msg = found.messages?.find((m) => m.ts === effect.ts);
+  if (!msg?.blocks?.some((b) => b.block_id === effect.blockId)) return;
+  const ask = effect.askId ? await getAsk(env.DB, effect.askId) : null;
+  const replacement = ask && effect.actorId
+    ? settledAskBlocks(ask, effect.actorId, effect.label)
+    : [{ type: "context", block_id: effect.blockId, elements: [{ type: "mrkdwn", text: effect.label }] }];
+  const status = `${effect.blockId}:status`;
+  const blocks = msg.blocks
+    .filter((b) => b.block_id !== status)
+    .flatMap((b) => (b.block_id === effect.blockId ? replacement : [b]));
+  await slackCall(env, "chat.update", { channel: effect.channelId, ts: effect.ts, text: msg.text ?? "", blocks });
 }
 
 async function renderRequestEffect(env: Env, effect: Of<"render_request">): Promise<void> {

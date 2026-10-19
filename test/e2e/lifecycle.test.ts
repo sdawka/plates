@@ -15,6 +15,50 @@ const dmRef = (user: string, i = -1) => {
 const liveText = (t: { card: { ts: string } }) => text(h.slack.message(CHANNEL, t.card.ts));
 const weekday = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
 
+describe("the DM a button sat on settles", () => {
+  const blocksOf = (ref: { channel: string; ts: string }) => h.slack.message(ref.channel, ref.ts).blocks ?? [];
+  const askButtons = (ref: { channel: string; ts: string }) => blocksOf(ref).filter((b) => b.block_id === `a:${ask().id}` && b.type === "actions");
+
+  it("accept now replaces the buttons with what happened and the new status", async () => {
+    await tagAndConfirm(h);
+    const ref = dmRef(USERS.bob);
+    expect(askButtons(ref)).toHaveLength(1);
+    await h.click(USERS.bob, ref, "ask:accept_now", ask().id as string);
+    const line = JSON.stringify(blocksOf(ref).find((b) => b.block_id === `a:${ask().id}:status`));
+    expect(line).toContain("You're on it");
+    expect(line).toContain("in progress");
+    // The next moves replace Accept: Done is there, Accept is gone.
+    const buttons = JSON.stringify(askButtons(ref));
+    expect(buttons).toContain("ask:done");
+    expect(buttons).not.toContain("ask:accept_now");
+
+    await h.click(USERS.bob, ref, "ask:done", ask().id as string);
+    await h.submit(USERS.bob, {});
+    expect(blocksOf(ref).filter((b) => b.block_id === `a:${ask().id}:status`)).toHaveLength(1);
+    expect(JSON.stringify(blocksOf(ref))).toContain("Marked done");
+    expect(askButtons(ref)).toHaveLength(0); // now on Dana's plate: nothing left for Bob here
+    expect(h.errors).toEqual([]);
+  });
+
+  it("a modal action settles the DM when the modal is submitted, not before", async () => {
+    await tagAndConfirm(h);
+    const ref = dmRef(USERS.bob);
+    await h.click(USERS.bob, ref, "ask:accept_later", ask().id as string);
+    expect(askButtons(ref)).toHaveLength(1);
+    await h.submit(USERS.bob, { date: "2026-10-22" });
+    expect(JSON.stringify(askButtons(ref))).not.toContain("ask:accept_later");
+    expect(JSON.stringify(blocksOf(ref))).toContain("Accepted");
+  });
+
+  it("a denied click leaves the buttons alone", async () => {
+    await tagAndConfirm(h);
+    const ref = dmRef(USERS.bob);
+    const before = JSON.stringify(blocksOf(ref));
+    await h.click(USERS.dana, ref, "ask:accept_now", ask().id as string);
+    expect(JSON.stringify(blocksOf(ref))).toBe(before);
+  });
+});
+
 describe("owner accepts", () => {
   it("accept now from the DM button moves the ask in progress", async () => {
     const t = await tagAndConfirm(h);
@@ -33,7 +77,7 @@ describe("owner accepts", () => {
     expect(opened).toHaveLength(1);
     const modal = h.slack.lastModal();
     expect(modal.callback_id).toBe("modal:accept_later");
-    expect(JSON.parse(modal.private_metadata)).toEqual({ askId: ask().id, via: "dm" });
+    expect(JSON.parse(modal.private_metadata)).toEqual({ askId: ask().id, via: "dm", msg: dmRef(USERS.bob) });
     expect(modal.blocks.filter((b) => b.type === "input").map((b) => b.block_id)).toEqual(["date"]);
 
     const res = await h.submit(USERS.bob, { date: "2026-10-22" });

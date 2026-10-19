@@ -11,7 +11,7 @@ import { TransitionError, type AskAction, type Effect, type Env, type RequestRow
 import { helpModal } from "./help";
 import { slackCall } from "./api";
 import {
-  ACTION_LABEL, BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID, HELP_OPEN_ACTION_ID,
+  ACTION_DONE_LABEL, ACTION_LABEL, BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID, HELP_OPEN_ACTION_ID,
   parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta,
 } from "./actions";
 import { openModalLazily, openSettings } from "./commands";
@@ -183,19 +183,35 @@ async function bump(env: Env, p: BlockActionsPayload, askId: string): Promise<vo
 }
 
 async function confirmRequestAction(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
-  await dispatch(env, await confirmDiscarded(env, requestId, p.user.id, viaOf(p)));
+  const effects = await confirmDiscarded(env, requestId, p.user.id, viaOf(p));
+  const dm = clickedDm(p);
+  if (dm) effects.push({ kind: "settle_dm", channelId: dm.channel, ts: dm.ts, blockId: `r:${requestId}`, label: "✅ You confirmed this. It's on the plate now." });
+  await dispatch(env, effects);
 }
+
+/** The DM a button sat on. Thread cards re-render themselves; DMs have to be settled. */
+function clickedDm(p: BlockActionsPayload): { channel: string; ts: string } | undefined {
+  if (p.view?.type === "home") return undefined;
+  const channel = p.channel?.id ?? p.container?.channel_id;
+  const ts = p.container?.message_ts ?? p.message?.ts;
+  return channel?.startsWith("D") && ts ? { channel, ts } : undefined;
+}
+
+const settleAsk = (msg: { channel: string; ts: string } | undefined, kind: AskActionKind, askId: string, actorId: string): Effect[] =>
+  msg ? [{ kind: "settle_dm", channelId: msg.channel, ts: msg.ts, blockId: `a:${askId}`, label: ACTION_DONE_LABEL[kind], askId, actorId }] : [];
 
 async function askAction(env: Env, p: BlockActionsPayload, kind: AskActionKind, askId: string): Promise<void> {
   const via = viaOf(p);
   if (!NEEDS_MODAL.has(kind)) {
     const action = simpleAction(kind);
     if (!action) return;
-    await dispatch(env, await applyAction(env, askId, action, p.user.id, via));
+    const effects = await applyAction(env, askId, action, p.user.id, via);
+    await dispatch(env, [...effects, ...settleAsk(clickedDm(p), kind, askId, p.user.id)]);
     return;
   }
   if (!p.trigger_id) return;
-  const meta: ModalMeta = { askId, via };
+  const dm = clickedDm(p);
+  const meta: ModalMeta = { askId, via, ...(dm && { msg: dm }) };
   const build = async () => {
     const ask = await getAsk(env.DB, askId);
     if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
@@ -242,7 +258,7 @@ async function submitAskModal(env: Env, ctx: ExecutionContext, p: ViewSubmission
   const parsed = parseAskSubmission(kind, p.view.state.values, { now: Date.now(), tz });
   if (!parsed.ok) return errorsResponse(parsed.errors);
   const effects = await applyAction(env, meta.askId, parsed.value, p.user.id, meta.via);
-  ctx.waitUntil(dispatch(env, effects));
+  ctx.waitUntil(dispatch(env, [...effects, ...settleAsk(meta.msg, kind, meta.askId, p.user.id)]));
   return ok();
 }
 

@@ -3,6 +3,7 @@
 
 import { getAsksByRequest, getRequest, updateRequest } from "./domain/repo";
 import { publishHome } from "./home/home";
+import { syncTracker } from "./trackers";
 import { slackCall } from "./slack/api";
 import { renderDm, renderRequest, type DmContext, type Rendered } from "./slack/blocks";
 import type { Effect, Env, RequestRow } from "./types";
@@ -30,6 +31,7 @@ function run(env: Env, effect: Effect): Promise<unknown> {
     case "reschedule": return env.KEEPER.get(env.KEEPER.idFromName(effect.userId)).reschedule(effect.userId);
     case "thread_reply":
       return slackCall(env, "chat.postMessage", { channel: effect.channelId, thread_ts: effect.threadTs, text: effect.text });
+    case "tracker_sync": return syncTracker(env, effect.askId);
   }
 }
 

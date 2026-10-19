@@ -12,7 +12,8 @@ function ask(over: Partial<AskRow> & { id: string }): AskRow {
     urgency: "normal", urgency_source: "llm", estimate_reason: null, inferred_due_at: null, deadline_at: null,
     deadline_change_count: 0, snoozed_until: null, snooze_count: 0, round_count: 0, source_ts: null,
     source_permalink: null, next_step: null, done_link: null, last_note: null, created_at: NOW - DAY,
-    accepted_at: null, closed_at: null, updated_at: NOW - DAY, ...over,
+    accepted_at: null, closed_at: null, updated_at: NOW - DAY, reminder_stage: 0, last_reminded_at: null,
+    last_bumped_at: null, tracker_ref: null, tracker_url: null, ...over,
   };
 }
 

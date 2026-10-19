@@ -262,5 +262,9 @@ export function renderDm(template: DmTemplate, c: DmContext): Rendered | null {
     case "deadline_changed": return deadlineDm(c, ask);
     case "ask_withdrawn": return withdrawnDm(c, ask);
     case "ask_proposed": return askProposedDm(c, ask);
+    case "reminder":
+    case "bump":
+    case "action_undone":
+      return null; // Phase 2: rendered by the conversational agent
   }
 }

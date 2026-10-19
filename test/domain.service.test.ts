@@ -100,6 +100,7 @@ function mkAsk(over: Partial<AskRow> = {}): AskRow {
     created_at: 10,
     accepted_at: null,
     closed_at: null,
+    reminder_stage: 0, last_reminded_at: null, last_bumped_at: null, tracker_ref: null, tracker_url: null,
     updated_at: 10,
     ...over,
   };

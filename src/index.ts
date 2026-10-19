@@ -1,5 +1,6 @@
 // Worker entry: Slack HTTP ingress (events + interactivity) and the extract-queue consumer.
 
+import { handleOAuth } from "./oauth";
 import { dispatch } from "./effects";
 import { handleExtractJob } from "./extract/index";
 import { handleEvent, type SlackEvent } from "./slack/events";
@@ -53,6 +54,7 @@ function handleEnvelope(envelope: EventEnvelope, env: Env, ctx: ExecutionContext
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (new URL(req.url).pathname.startsWith("/oauth/")) return handleOAuth(req, env);
     if (req.method !== "POST") return text("plates", 200);
     try {
       return await handleSlackRequest(req, env, ctx);

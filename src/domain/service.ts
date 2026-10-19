@@ -2,9 +2,11 @@
 // reactions and PlateKeeper all go through here. Returns effects for src/effects.ts to execute.
 
 import {
+  OWNER_PLATE_STATES,
   TransitionError,
   type Actor,
   type AskAction,
+  type AskEventRow,
   type AskRow,
   type DraftAsk,
   type Effect,
@@ -15,6 +17,7 @@ import {
 import { transition } from "./transitions";
 import {
   getAsk,
+  getEvent,
   getRequest,
   insertAskStmt,
   insertEventIfChangedStmt,
@@ -32,6 +35,14 @@ function fanOut(userIds: (string | null | undefined)[]): Effect[] {
   ]);
 }
 
+export interface ApplyResult {
+  effects: Effect[];
+  eventId: string;
+  before: AskRow;
+  after: AskRow;
+}
+
+/** Shorthand when the caller only needs the effects. */
 export async function applyAction(
   env: Env,
   askId: string,
@@ -40,32 +51,43 @@ export async function applyAction(
   via: Via,
   sourceTs: string | null = null,
 ): Promise<Effect[]> {
+  return (await applyActionDetailed(env, askId, action, actor, via, sourceTs)).effects;
+}
+
+export async function applyActionDetailed(
+  env: Env,
+  askId: string,
+  action: AskAction,
+  actor: Actor,
+  via: Via,
+  sourceTs: string | null = null,
+): Promise<ApplyResult> {
   const ask = await getAsk(env.DB, askId);
   if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
 
   const now = Math.max(Date.now(), ask.updated_at + 1);
   const { next, eventKind, note, dm } = transition(ask, action, actor, now);
-
-  const [save] = await env.DB.batch([
-    saveAskStmt(env.DB, next, ask.updated_at),
-    insertEventIfChangedStmt(env.DB, {
-      id: newId(),
-      ask_id: ask.id,
-      request_id: ask.request_id,
-      actor_id: actor,
-      kind: eventKind,
-      from_state: ask.state,
-      to_state: next.state,
-      note,
-      via,
-      source_ts: sourceTs,
-      at: now,
-    }),
-  ]);
-  if (!save || save.meta.changes !== 1) {
-    // Someone else changed it first; the event insert was skipped too.
-    throw new TransitionError(`ask ${askId} changed concurrently`, "Someone just changed this ask. Please try again.");
+  // Any move, new holder or new deadline restarts the reminder ladder.
+  if (next.state !== ask.state || next.holder_id !== ask.holder_id || next.deadline_at !== ask.deadline_at) {
+    next.reminder_stage = 0;
+    next.last_reminded_at = null;
   }
+
+  const eventId = newId();
+  await saveWithEvent(env, ask, next, {
+    id: eventId,
+    ask_id: ask.id,
+    request_id: ask.request_id,
+    actor_id: actor,
+    kind: eventKind,
+    from_state: ask.state,
+    to_state: next.state,
+    note,
+    via,
+    source_ts: sourceTs,
+    at: now,
+    prev_json: JSON.stringify(ask),
+  });
 
   const effects: Effect[] = [{ kind: "render_request", requestId: ask.request_id }];
   if (dm) {
@@ -80,7 +102,91 @@ export async function applyAction(
     });
   }
   effects.push(...fanOut([ask.requester_id, ask.owner_id, next.owner_id]));
+  if (next.type === "deliverable") effects.push({ kind: "tracker_sync", askId: ask.id });
+  return { effects, eventId, before: ask, after: next };
+}
+
+async function saveWithEvent(env: Env, prev: AskRow, next: AskRow, event: AskEventRow): Promise<void> {
+  const [save] = await env.DB.batch([
+    saveAskStmt(env.DB, next, prev.updated_at),
+    insertEventIfChangedStmt(env.DB, event),
+  ]);
+  if (!save || save.meta.changes !== 1) {
+    // Someone else changed it first; the event insert was skipped too.
+    throw new TransitionError(`ask ${prev.id} changed concurrently`, "Someone just changed this ask. Please try again.");
+  }
+}
+
+export const UNDO_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Undo an action: only by the person who did it, within UNDO_WINDOW_MS, and only if nothing
+ * has changed the ask since. Restores the snapshot and tells whoever was notified of the move.
+ */
+export async function undoEvent(env: Env, eventId: string, actor: string, via: Via): Promise<Effect[]> {
+  const event = await getEvent(env.DB, eventId);
+  if (!event?.ask_id || !event.prev_json) throw new TransitionError(`event ${eventId} not undoable`, "That can't be undone.");
+  if (event.actor_id !== actor) throw new TransitionError("undo by other user", "Only the person who did this can undo it.");
+  if (event.kind === "undo") throw new TransitionError("undo of undo", "That can't be undone.");
+  const now = Date.now();
+  if (now - event.at > UNDO_WINDOW_MS) throw new TransitionError("undo window passed", "It's too late to undo that. Use the buttons instead.");
+
+  const current = await getAsk(env.DB, event.ask_id);
+  if (!current || current.updated_at !== event.at) {
+    throw new TransitionError("ask changed since", "This ask has changed since, so it can't be undone.");
+  }
+  const restored: AskRow = { ...(JSON.parse(event.prev_json) as AskRow), updated_at: Math.max(now, current.updated_at + 1) };
+  await saveWithEvent(env, current, restored, {
+    id: newId(),
+    ask_id: current.id,
+    request_id: current.request_id,
+    actor_id: actor,
+    kind: "undo",
+    from_state: current.state,
+    to_state: restored.state,
+    note: event.kind,
+    via,
+    source_ts: null,
+    at: restored.updated_at,
+    prev_json: null,
+  });
+
+  const effects: Effect[] = [{ kind: "render_request", requestId: current.request_id }];
+  // Whoever received the ask (or a notification about it) hears that it was undone.
+  const notified = current.holder_id !== restored.holder_id ? current.holder_id : null;
+  if (notified && notified !== actor) {
+    effects.push({ kind: "dm", userId: notified, template: "action_undone", requestId: current.request_id, askId: current.id, note: event.kind });
+  }
+  effects.push(...fanOut([current.requester_id, current.owner_id, restored.owner_id]));
+  if (current.type === "deliverable") effects.push({ kind: "tracker_sync", askId: current.id });
   return effects;
+}
+
+export const BUMP_INTERVAL_MS = 20 * 60 * 60 * 1000; // "once per day", tolerant of timezones
+
+/** Requester nudges the owner about an ask on the owner's plate. */
+export async function bumpAsk(env: Env, askId: string, actor: string, via: Via): Promise<Effect[]> {
+  const ask = await getAsk(env.DB, askId);
+  if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
+  if (actor !== ask.requester_id) throw new TransitionError("bump by non-requester", "Only the person who asked can bump it.");
+  if (!OWNER_PLATE_STATES.includes(ask.state)) throw new TransitionError("bump off owner plate", "This ask isn't waiting on anyone right now.");
+  const now = Date.now();
+  if (ask.last_bumped_at && now - ask.last_bumped_at < BUMP_INTERVAL_MS) {
+    throw new TransitionError("bumped recently", "You've already bumped this today.");
+  }
+  const res = await env.DB.batch([
+    env.DB.prepare("UPDATE asks SET last_bumped_at = ? WHERE id = ? AND (last_bumped_at IS NULL OR last_bumped_at < ?)")
+      .bind(now, ask.id, now - BUMP_INTERVAL_MS),
+    insertEventIfChangedStmt(env.DB, {
+      id: newId(), ask_id: ask.id, request_id: ask.request_id, actor_id: actor, kind: "bump",
+      from_state: ask.state, to_state: ask.state, note: null, via, source_ts: null, at: now, prev_json: null,
+    }),
+  ]);
+  if (res[0]?.meta.changes !== 1) throw new TransitionError("bumped concurrently", "You've already bumped this today.");
+  return [
+    { kind: "dm", userId: ask.owner_id, template: "bump", requestId: ask.request_id, askId: ask.id },
+    { kind: "refresh_home", userId: ask.requester_id },
+  ];
 }
 
 /** Requester or owner confirms a pending request: create its asks and notify the owner. */
@@ -123,6 +229,11 @@ export async function confirmRequest(env: Env, requestId: string, userId: string
     accepted_at: null,
     closed_at: null,
     updated_at: now + i,
+    reminder_stage: 0,
+    last_reminded_at: null,
+    last_bumped_at: null,
+    tracker_ref: null,
+    tracker_url: null,
   }));
 
   // Claim the confirmation first so two simultaneous confirms can't both create the asks.
@@ -137,7 +248,7 @@ export async function confirmRequest(env: Env, requestId: string, userId: string
     ...asks.map((a) => insertAskStmt(env.DB, a)),
     insertEventStmt(env.DB, {
       id: newId(), ask_id: null, request_id: req.id, actor_id: userId, kind: "confirm",
-      from_state: null, to_state: null, note: null, via, source_ts: null, at: now,
+      from_state: null, to_state: null, note: null, via, source_ts: null, at: now, prev_json: null,
     }),
   ]);
 

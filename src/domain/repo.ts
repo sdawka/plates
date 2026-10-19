@@ -10,6 +10,7 @@ const ASK_COLUMNS = [
   "inferred_due_at", "deadline_at", "deadline_change_count", "snoozed_until", "snooze_count",
   "round_count", "source_ts", "source_permalink", "next_step", "done_link", "last_note",
   "created_at", "accepted_at", "closed_at", "updated_at",
+  "reminder_stage", "last_reminded_at", "last_bumped_at", "tracker_ref", "tracker_url",
 ] as const satisfies readonly (keyof AskRow)[];
 
 const REQUEST_COLUMNS = [
@@ -145,19 +146,23 @@ export async function nextSnoozeWake(db: D1Database, ownerId: string): Promise<n
 
 // ---------- Events ----------
 
-const EVENT_INSERT = `INSERT INTO ask_events (id, ask_id, request_id, actor_id, kind, from_state, to_state, note, via, source_ts, at)`;
+const EVENT_INSERT = `INSERT INTO ask_events (id, ask_id, request_id, actor_id, kind, from_state, to_state, note, via, source_ts, at, prev_json)`;
 const eventValues = (e: AskEventRow) =>
-  [e.id, e.ask_id, e.request_id, e.actor_id, e.kind, e.from_state, e.to_state, e.note, e.via, e.source_ts, e.at] as const;
+  [e.id, e.ask_id, e.request_id, e.actor_id, e.kind, e.from_state, e.to_state, e.note, e.via, e.source_ts, e.at, e.prev_json] as const;
 
 export function insertEventStmt(db: D1Database, e: AskEventRow): D1PreparedStatement {
-  return db.prepare(`${EVENT_INSERT} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(...eventValues(e));
+  return db.prepare(`${EVENT_INSERT} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(...eventValues(e));
 }
 
 /** Inserts the event only if the previous statement in the same batch changed exactly one row. */
 export function insertEventIfChangedStmt(db: D1Database, e: AskEventRow): D1PreparedStatement {
   return db
-    .prepare(`${EVENT_INSERT} SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1`)
+    .prepare(`${EVENT_INSERT} SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE changes() = 1`)
     .bind(...eventValues(e));
+}
+
+export async function getEvent(db: D1Database, id: string): Promise<AskEventRow | null> {
+  return db.prepare("SELECT * FROM ask_events WHERE id = ?").bind(id).first<AskEventRow>();
 }
 
 export async function listEvents(db: D1Database, askId: string): Promise<AskEventRow[]> {
@@ -177,6 +182,8 @@ export function defaultPrefs(userId: string): UserPrefsRow {
     max_reminders_per_day: 5,
     last_digest_at: null,
     updated_at: 0,
+    reminders_day: null,
+    reminders_sent: 0,
   };
 }
 
@@ -187,13 +194,16 @@ export async function getPrefs(db: D1Database, userId: string): Promise<UserPref
 export async function upsertPrefs(db: D1Database, p: UserPrefsRow): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO user_prefs (user_id, tz, work_start_hour, work_end_hour, digest_time, max_reminders_per_day, last_digest_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO user_prefs (user_id, tz, work_start_hour, work_end_hour, digest_time, max_reminders_per_day, last_digest_at,
+         reminders_day, reminders_sent, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET tz = excluded.tz, work_start_hour = excluded.work_start_hour,
          work_end_hour = excluded.work_end_hour, digest_time = excluded.digest_time,
          max_reminders_per_day = excluded.max_reminders_per_day, last_digest_at = excluded.last_digest_at,
+         reminders_day = excluded.reminders_day, reminders_sent = excluded.reminders_sent,
          updated_at = excluded.updated_at`,
     )
-    .bind(p.user_id, p.tz, p.work_start_hour, p.work_end_hour, p.digest_time, p.max_reminders_per_day, p.last_digest_at, Date.now())
+    .bind(p.user_id, p.tz, p.work_start_hour, p.work_end_hour, p.digest_time, p.max_reminders_per_day, p.last_digest_at,
+      p.reminders_day, p.reminders_sent, Date.now())
     .run();
 }

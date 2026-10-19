@@ -11,6 +11,22 @@ export interface Env {
   ANTHROPIC_API_KEY: string;
   EXTRACT_MODEL: string; // claude-sonnet-5-5
   FAST_MODEL: string; // claude-haiku-5-5
+  /** Overrides for local integration runs against mock servers. Unset in production. */
+  SLACK_API_URL?: string; // default https://slack.com/api
+  ANTHROPIC_BASE_URL?: string; // default https://api.anthropic.com
+  // Phase 3, all optional. Features switch off when their secrets are missing.
+  SLACK_CLIENT_ID?: string; // user-token OAuth (DM context)
+  SLACK_CLIENT_SECRET?: string;
+  TOKEN_ENC_KEY?: string; // base64 32-byte AES key for user_tokens
+  PUBLIC_URL?: string; // e.g. https://plates.example.workers.dev (OAuth redirect)
+  TRACKER?: "jira" | "linear"; // tracker sync target; unset = off
+  JIRA_BASE_URL?: string; // https://yourco.atlassian.net
+  JIRA_EMAIL?: string;
+  JIRA_API_TOKEN?: string;
+  JIRA_PROJECT_KEY?: string;
+  LINEAR_API_KEY?: string;
+  LINEAR_TEAM_ID?: string;
+  LINEAR_API_URL?: string; // default https://api.linear.app/graphql
 }
 
 // ---------- Enums ----------
@@ -100,6 +116,11 @@ export interface AskRow {
   accepted_at: number | null;
   closed_at: number | null;
   updated_at: number;
+  reminder_stage: number;
+  last_reminded_at: number | null;
+  last_bumped_at: number | null;
+  tracker_ref: string | null;
+  tracker_url: string | null;
 }
 
 export interface AskEventRow {
@@ -114,6 +135,7 @@ export interface AskEventRow {
   via: Via;
   source_ts: string | null;
   at: number;
+  prev_json: string | null; // AskRow before the transition (for undo)
 }
 
 export interface UserPrefsRow {
@@ -124,6 +146,25 @@ export interface UserPrefsRow {
   digest_time: string; // local HH:MM
   max_reminders_per_day: number;
   last_digest_at: number | null;
+  updated_at: number;
+  reminders_day: string | null; // local YYYY-MM-DD the counter applies to
+  reminders_sent: number;
+}
+
+export type ProposalStatus = "pending" | "applied" | "dismissed" | "expired";
+export interface ProposalRow {
+  id: string;
+  source: "reply" | "detector";
+  request_id: string;
+  ask_id: string | null;
+  actor_id: string;
+  action_json: string; // AskAction
+  channel_id: string;
+  thread_ts: string;
+  source_ts: string;
+  message_ts: string | null;
+  status: ProposalStatus;
+  created_at: number;
   updated_at: number;
 }
 
@@ -175,7 +216,10 @@ export type DmTemplate =
   | "ask_clarify" // requester: owner needs more info
   | "deadline_changed" // requester
   | "ask_withdrawn" // owner
-  | "confirm_nudge"; // requester + owner: unconfirmed request reminder (requestId)
+  | "confirm_nudge" // requester + owner: unconfirmed request reminder (requestId)
+  | "reminder" // holder: one DM listing askIds that are due (snooze_count >= 3 → deadline/redirect/reject first)
+  | "bump" // owner: requester bumped askId
+  | "action_undone"; // user who was notified of an action that has now been undone
 
 export type Effect =
   | { kind: "render_request"; requestId: string } // post or update the confirmation / live request message
@@ -187,10 +231,12 @@ export type Effect =
       askId?: string;
       note?: string;
       deadline?: { from: number | null; to: number | null }; // deadline_changed only
+      askIds?: string[]; // reminder only
     }
   | { kind: "refresh_home"; userId: string }
   | { kind: "reschedule"; userId: string } // tell that user's PlateKeeper to recompute alarms
-  | { kind: "thread_reply"; channelId: string; threadTs: string; text: string }; // plain text in a thread
+  | { kind: "thread_reply"; channelId: string; threadTs: string; text: string } // plain text in a thread
+  | { kind: "tracker_sync"; askId: string }; // mirror a deliverable ask's state to Jira/Linear (no-op when off)
 
 // ---------- Queue jobs ----------
 

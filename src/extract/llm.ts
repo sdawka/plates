@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "../types";
 import { CLARIFY_SYSTEM, EXTRACT_SYSTEM, EXTRACT_TOOL, EXTRACT_TOOL_NAME } from "./prompt";
 
-const client = (env: Env) => new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+const client = (env: Env) => new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL: env.ANTHROPIC_BASE_URL });
 
 /** Run the extraction tool call and return the tool input (unvalidated). */
 export async function callExtraction(env: Env, prompt: string): Promise<unknown> {

@@ -7,19 +7,19 @@
 SLACK_SIGNING_SECRET=
 # Slack app > OAuth & Permissions > Bot User OAuth Token (xoxb-...).
 SLACK_BOT_TOKEN=xoxb-
-# console.anthropic.com API key (sk-ant-...). Used for extraction and the thread-reply intent model.
-ANTHROPIC_API_KEY=sk-ant-
+# https://openrouter.ai/settings/keys (sk-or-...). Claude via OpenRouter for extraction, intent and clarifying questions.
+OPENROUTER_API_KEY=sk-or-
 
 # ---------- required vars (defaults are in wrangler.jsonc) ----------
 # Model for extracting asks from a thread.
-# EXTRACT_MODEL=claude-sonnet-5-5
+# EXTRACT_MODEL=anthropic/claude-sonnet-5.5
 # Cheap model for clarifying questions and thread-reply intent.
-# FAST_MODEL=claude-haiku-5-5
+# FAST_MODEL=anthropic/claude-haiku-5.5
 
 # ---------- local testing overrides (leave unset in production) ----------
 # Point the Slack Web API / Anthropic API at mock servers (see scripts/mock-servers.ts, `npm run local:mock`).
 # SLACK_API_URL=http://127.0.0.1:8788/slack/api      # default https://slack.com/api
-# ANTHROPIC_BASE_URL=http://127.0.0.1:8788/anthropic # default https://api.anthropic.com
+# LLM_BASE_URL=http://127.0.0.1:8788/anthropic # default https://openrouter.ai/api
 
 # ---------- optional: reading DMs with a user token (Phase 3). Feature is off when these are missing ----------
 # Slack app > Basic Information > App Credentials.

@@ -131,9 +131,9 @@ async function setup(): Promise<void> {
   const vars: Record<string, string> = {
     SLACK_SIGNING_SECRET: SIGNING_SECRET,
     SLACK_BOT_TOKEN: BOT_TOKEN,
-    ANTHROPIC_API_KEY: ANTHROPIC_KEY,
+    OPENROUTER_API_KEY: ANTHROPIC_KEY,
     SLACK_API_URL: mocks.slackApiUrl,
-    ANTHROPIC_BASE_URL: mocks.anthropicBaseUrl,
+    LLM_BASE_URL: mocks.anthropicBaseUrl,
   };
   const args = ["dev", "--local", "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(inspector), "--persist-to", persistDir];
   for (const [k, v] of Object.entries(vars)) args.push("--var", `${k}:${v}`);

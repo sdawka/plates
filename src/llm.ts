@@ -22,10 +22,31 @@ export interface ToolCall {
   prompt: string;
 }
 
+/**
+ * Claude through OpenRouter's Anthropic-compatible Messages endpoint, so stop_reason, strict tools
+ * and content blocks behave as in Anthropic's own API. OpenRouter authenticates with a bearer token.
+ * https://openrouter.ai/docs/api/reference/overview
+ */
+export function llmClient(env: Env): Anthropic {
+  return new Anthropic({
+    baseURL: env.LLM_BASE_URL ?? "https://openrouter.ai/api",
+    apiKey: null,
+    authToken: env.OPENROUTER_API_KEY,
+    defaultHeaders: { "HTTP-Referer": env.PUBLIC_URL ?? "https://plates.webisoft.workers.dev", "X-OpenRouter-Title": "Plates" },
+  });
+}
+
+/**
+ * OpenRouter routing: only providers that honour every parameter we send (it otherwise drops unsupported
+ * ones silently), and not Claude in Amazon Bedrock, which lacks structured outputs / strict tools.
+ */
+export const PROVIDER_ROUTING = { provider: { require_parameters: true, ignore: ["amazon-bedrock", "claude-on-aws"] } };
+
 export async function callTool(env: Env, call: ToolCall): Promise<unknown> {
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL: env.ANTHROPIC_BASE_URL });
+  const client = llmClient(env);
   for (const maxTokens of [call.maxTokens, call.retryMaxTokens]) {
     const res = await client.messages.create({
+      ...(PROVIDER_ROUTING as object),
       model: call.model,
       max_tokens: maxTokens,
       system: call.system,

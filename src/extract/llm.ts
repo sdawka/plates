@@ -1,11 +1,8 @@
 // Claude calls. Throws on transient failures (the queue retries); returns raw tool input otherwise.
 
-import Anthropic from "@anthropic-ai/sdk";
-import { callTool } from "../llm";
+import { PROVIDER_ROUTING, callTool, llmClient } from "../llm";
 import type { Env } from "../types";
 import { CLARIFY_SYSTEM, EXTRACT_SYSTEM, EXTRACT_TOOL, EXTRACT_TOOL_NAME } from "./prompt";
-
-const client = (env: Env) => new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, baseURL: env.ANTHROPIC_BASE_URL });
 
 /** Run the extraction tool call and return the tool input (unvalidated). */
 export async function callExtraction(env: Env, prompt: string): Promise<unknown> {
@@ -21,7 +18,8 @@ export async function callExtraction(env: Env, prompt: string): Promise<unknown>
 
 /** One short clarifying question from the fast model; null when it produced nothing usable. */
 export async function callClarify(env: Env, prompt: string): Promise<string | null> {
-  const res = await client(env).messages.create({
+  const res = await llmClient(env).messages.create({
+    ...(PROVIDER_ROUTING as object),
     model: env.FAST_MODEL,
     max_tokens: 200,
     system: CLARIFY_SYSTEM,

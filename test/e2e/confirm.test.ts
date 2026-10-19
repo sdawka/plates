@@ -62,7 +62,7 @@ describe("confirming with reactions", () => {
     expect(h.queue.sentOfKind("clarify_reaction")).toHaveLength(1);
     await h.drain();
     const clarify = h.anthropic.requests.at(-1)!;
-    expect(clarify.model).toBe("claude-haiku-5-5");
+    expect(clarify.model).toBe("anthropic/claude-haiku-5.5");
     expect(clarify.body.tools).toBeUndefined();
     expect(threadReplies(t.root.ts).at(-1)).toBe("Who is actually asking here, Dana or Tara?");
   });

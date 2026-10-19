@@ -36,12 +36,12 @@ npm run deploy                                  # prints the Worker URL
 
 1. In `slack-manifest.yaml`, replace every `WORKER_URL` with the deployed URL (e.g. `https://plates.<account>.workers.dev`).
 2. At https://api.slack.com/apps → **Create New App** → **From a manifest**, paste it, then **Install to Workspace**.
-3. Set the secrets from the app's pages and the Anthropic console:
+3. Set the secrets from the app's pages and OpenRouter:
 
 ```sh
 npx wrangler secret put SLACK_SIGNING_SECRET   # Basic Information → Signing Secret
 npx wrangler secret put SLACK_BOT_TOKEN        # OAuth & Permissions → Bot User OAuth Token (xoxb-…)
-npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put OPENROUTER_API_KEY     # https://openrouter.ai/settings/keys
 ```
 
 4. In the app's **Event Subscriptions** page, confirm the request URL shows *Verified* (re-save if it was created before the secret was set).
@@ -57,9 +57,9 @@ Secrets are set with `wrangler secret put`; plain vars go under `vars` in `wrang
 |---|---|---|
 | `SLACK_SIGNING_SECRET` | secret | Verifies requests from Slack. Without it every request is rejected. |
 | `SLACK_BOT_TOKEN` | secret | Bot token for posting and reading. Without it Plates can't talk to Slack. |
-| `ANTHROPIC_API_KEY` | secret | Extraction and clarifying questions. Without it nothing can be extracted. |
-| `EXTRACT_MODEL` | var | Model for extraction (default in `wrangler.jsonc`: `claude-sonnet-5-5`). |
-| `FAST_MODEL` | var | Model for short clarifying questions (default: `claude-haiku-5-5`). |
+| `OPENROUTER_API_KEY` | secret | Claude via OpenRouter (Anthropic-compatible Messages endpoint) for extraction, intent and clarifying questions. Without it nothing can be extracted. |
+| `EXTRACT_MODEL` | var | Model for extraction (default in `wrangler.jsonc`: `anthropic/claude-sonnet-5.5`). |
+| `FAST_MODEL` | var | Model for short clarifying questions (default: `anthropic/claude-haiku-5.5`). |
 
 ### Optional: reading DMs (user-token OAuth)
 
@@ -83,7 +83,7 @@ Set `TRACKER` to `jira` or `linear`. Unset, tracker sync is off. The matching gr
 
 ### Testing only
 
-`SLACK_API_URL` (default `https://slack.com/api`) and `ANTHROPIC_BASE_URL` (default `https://api.anthropic.com`) point Plates at mock servers for local integration runs. Leave them unset in production.
+`SLACK_API_URL` (default `https://slack.com/api`) and `LLM_BASE_URL` (default `https://openrouter.ai/api`) point Plates at mock servers for local integration runs. Leave them unset in production.
 
 ## Checks
 

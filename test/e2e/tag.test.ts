@@ -56,7 +56,7 @@ describe("tagging @plates in a thread", () => {
 
     // The model saw the thread, with names and the bot message excluded.
     const call = h.anthropic.requests[0]!;
-    expect(call.model).toBe("claude-sonnet-5-5");
+    expect(call.model).toBe("anthropic/claude-sonnet-5.5");
     expect(call.forcedTool).toBeNull(); // Sonnet 5.5 rejects forced tool_choice; strict tool under "auto"
     expect(call.prompt).toContain("UDANA: dana");
     expect(call.prompt).not.toContain("Reading the thread");

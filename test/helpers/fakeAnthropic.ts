@@ -102,8 +102,10 @@ export class FakeAnthropic {
     let body: Obj = {};
     try {
       if (req.method !== "POST") throw new ApiError(405, "method not allowed");
-      if (!headers["x-api-key"]) throw new ApiError(401, "x-api-key header is required");
-      if (headers["x-api-key"] !== this.apiKey) throw new ApiError(401, "invalid x-api-key");
+      // Anthropic uses x-api-key; OpenRouter's Anthropic-compatible endpoint uses a bearer token.
+      const key = headers["x-api-key"] ?? headers["authorization"]?.replace(/^Bearer /, "");
+      if (!key) throw new ApiError(401, "x-api-key or Authorization: Bearer header is required");
+      if (key !== this.apiKey) throw new ApiError(401, "invalid API key");
       if (headers["anthropic-version"] !== ANTHROPIC_VERSION) throw bad("anthropic-version header is required (2023-06-01)");
       if (!(headers["content-type"] ?? "").startsWith("application/json")) throw bad("Content-Type must be application/json");
       try {
@@ -137,7 +139,7 @@ export class FakeAnthropic {
   }
 
   private validate(b: Obj, headers: Record<string, string>): RecordedAnthropicRequest {
-    if (typeof b.model !== "string" || !/^claude-[a-z0-9.-]+$/.test(b.model)) throw bad("model: must be a valid Claude model id");
+    if (typeof b.model !== "string" || !/^(anthropic\/)?claude-[a-z0-9.-]+$/.test(b.model)) throw bad("model: must be a valid Claude model id");
     if (!Number.isInteger(b.max_tokens) || (b.max_tokens as number) < 1) throw bad("max_tokens: Field required (positive integer)");
     if (b.stream === true) throw bad("FakeAnthropic does not implement streaming");
     if (!Array.isArray(b.messages) || b.messages.length === 0) throw bad("messages: at least one message is required");
@@ -174,7 +176,7 @@ export class FakeAnthropic {
       if (!b.tools) throw bad("tool_choice: tools must be provided when tool_choice is set");
       if (!["auto", "any", "tool", "none"].includes(String(choice.type))) throw bad("tool_choice.type: must be auto, any, tool or none");
       if (choice.type === "tool" && !toolNames.includes(String(choice.name))) throw bad(`tool_choice.name: no tool named "${String(choice.name)}" in tools`);
-      if (this.rejectForcedToolOnNewModels && (choice.type === "tool" || choice.type === "any") && /^claude-(opus-5-5|sonnet-5-5|fable-5-1|mythos-5-1)/.test(String(b.model)))
+      if (this.rejectForcedToolOnNewModels && (choice.type === "tool" || choice.type === "any") && /^(anthropic\/)?claude-(opus-5[.-]5|sonnet-5[.-]5|fable-5[.-]1|mythos-5[.-]1)/.test(String(b.model)))
         throw bad(`tool_choice: forced tool use (type "${String(choice.type)}") is not supported by model ${String(b.model)}; use "auto" or "none"`);
     }
     return this.record(b, headers, "pending");

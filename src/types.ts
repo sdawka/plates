@@ -8,12 +8,12 @@ export interface Env {
   KEEPER: DurableObjectNamespace<PlateKeeper>;
   SLACK_SIGNING_SECRET: string;
   SLACK_BOT_TOKEN: string;
-  ANTHROPIC_API_KEY: string;
-  EXTRACT_MODEL: string; // claude-sonnet-5-5
-  FAST_MODEL: string; // claude-haiku-5-5
+  OPENROUTER_API_KEY: string;
+  EXTRACT_MODEL: string; // anthropic/claude-sonnet-5.5 (OpenRouter id)
+  FAST_MODEL: string; // anthropic/claude-haiku-5.5
   /** Overrides for local integration runs against mock servers. Unset in production. */
   SLACK_API_URL?: string; // default https://slack.com/api
-  ANTHROPIC_BASE_URL?: string; // default https://api.anthropic.com
+  LLM_BASE_URL?: string; // default https://openrouter.ai/api (Anthropic-compatible /v1/messages)
   // Phase 3, all optional. Features switch off when their secrets are missing.
   SLACK_CLIENT_ID?: string; // user-token OAuth (DM context)
   SLACK_CLIENT_SECRET?: string;

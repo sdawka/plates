@@ -177,7 +177,7 @@ async function bump(env: Env, p: BlockActionsPayload, askId: string): Promise<vo
 }
 
 async function confirmRequestAction(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
-  await dispatch(env, await confirmDiscarded(env, requestId, p.user.id, "button"));
+  await dispatch(env, await confirmDiscarded(env, requestId, p.user.id, viaOf(p)));
 }
 
 async function askAction(env: Env, p: BlockActionsPayload, kind: AskActionKind, askId: string): Promise<void> {

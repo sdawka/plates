@@ -111,17 +111,22 @@ export function validateGroups(raw: unknown, ctx: ValidateCtx): ExtractedGroup[]
       clarify = !requester && !owner ? "Who is asking, and who is it for?" : !requester ? "Who is asking for this?" : "Who should this go to?";
     }
 
-    out.push({
-      requester_id: requester,
-      owner_id: owner,
-      attribution_confidence: confidence,
-      attribution_reason: text(g.attribution_reason, 300),
-      clarify_question: clarify,
-      asks,
-    });
+    // Long lists become several requests so each message stays within Slack's 50-block limit.
+    for (let i = 0; i < asks.length; i += MAX_ASKS_PER_REQUEST) {
+      out.push({
+        requester_id: requester,
+        owner_id: owner,
+        attribution_confidence: confidence,
+        attribution_reason: text(g.attribution_reason, 300),
+        clarify_question: clarify,
+        asks: asks.slice(i, i + MAX_ASKS_PER_REQUEST),
+      });
+    }
   }
   return out;
 }
+
+export const MAX_ASKS_PER_REQUEST = 10;
 
 const AFFIRM_RE =
   /^(?:yes|yep|yeah|yup|y|correct|confirmed?|confirm|right|that'?s right|looks (?:good|right)|lgtm|ok(?:ay)?|sure|:\+1:|:white_check_mark:|:heavy_check_mark:|👍|✅|☑️)(?:[\s.!,]*(?:thanks|thank you|thx|please))?[\s.!]*$/iu;

@@ -135,7 +135,16 @@ export async function undoEvent(env: Env, eventId: string, actor: string, via: V
   if (!current || current.updated_at !== event.at) {
     throw new TransitionError("ask changed since", "This ask has changed since, so it can't be undone.");
   }
-  const restored: AskRow = { ...(JSON.parse(event.prev_json) as AskRow), updated_at: Math.max(now, current.updated_at + 1) };
+  // Restore what the action changed; keep bookkeeping that happened independently since.
+  const restored: AskRow = {
+    ...(JSON.parse(event.prev_json) as AskRow),
+    last_bumped_at: current.last_bumped_at,
+    tracker_ref: current.tracker_ref,
+    tracker_url: current.tracker_url,
+    reminder_stage: 0,
+    last_reminded_at: null,
+    updated_at: Math.max(now, current.updated_at + 1),
+  };
   await saveWithEvent(env, current, restored, {
     id: newId(),
     ask_id: current.id,
@@ -175,7 +184,7 @@ export async function bumpAsk(env: Env, askId: string, actor: string, via: Via):
     throw new TransitionError("bumped recently", "You've already bumped this today.");
   }
   const res = await env.DB.batch([
-    env.DB.prepare("UPDATE asks SET last_bumped_at = ? WHERE id = ? AND (last_bumped_at IS NULL OR last_bumped_at < ?)")
+    env.DB.prepare("UPDATE asks SET last_bumped_at = ? WHERE id = ? AND (last_bumped_at IS NULL OR last_bumped_at <= ?)")
       .bind(now, ask.id, now - BUMP_INTERVAL_MS),
     insertEventIfChangedStmt(env.DB, {
       id: newId(), ask_id: ask.id, request_id: ask.request_id, actor_id: actor, kind: "bump",

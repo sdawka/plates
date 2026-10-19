@@ -6,6 +6,7 @@
 // and a closing instruction ask it to always call the tool.
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/implement-tool-use#forcing-tool-use
 
+import { info } from "./log";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "./types";
 
@@ -45,6 +46,7 @@ export const PROVIDER_ROUTING = { provider: { require_parameters: true, ignore: 
 export async function callTool(env: Env, call: ToolCall): Promise<unknown> {
   const client = llmClient(env);
   for (const maxTokens of [call.maxTokens, call.retryMaxTokens]) {
+    const started = Date.now();
     const res = await client.messages.create({
       ...(PROVIDER_ROUTING as object),
       model: call.model,
@@ -54,6 +56,7 @@ export async function callTool(env: Env, call: ToolCall): Promise<unknown> {
       tool_choice: { type: "auto" },
       messages: [{ role: "user", content: `${call.prompt}\n\nAnswer by calling the ${call.tool.name} tool.` }],
     });
+    info("llm call", { tool: call.tool.name, model: call.model, ms: Date.now() - started, stop: res.stop_reason, in: res.usage?.input_tokens, out: res.usage?.output_tokens });
     if (res.stop_reason === "refusal") throw new LlmPermanentError(`${call.tool.name}: refusal`);
     if (res.stop_reason === "max_tokens") continue; // tool input is incomplete; try the larger budget
     const block = res.content.find((b) => b.type === "tool_use" && b.name === call.tool.name);

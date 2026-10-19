@@ -5,6 +5,8 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Every invocation's logs go to the plates-logs Worker (logs/), which serves them behind Cloudflare Access.
+  "tail_consumers": [{ "service": "plates-logs" }],
 
   "d1_databases": [
     { "binding": "DB", "database_name": "plates", "database_id": "c4d60bac-5986-4daa-9da6-85ede934ece0", "migrations_dir": "migrations" }

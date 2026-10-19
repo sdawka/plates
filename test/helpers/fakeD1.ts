@@ -41,9 +41,8 @@ class FakeStatement {
 export class FakeD1 {
   readonly sqlite: DatabaseSync;
 
-  constructor() {
+  constructor(dir = new URL("../../migrations/", import.meta.url)) {
     this.sqlite = new DatabaseSync(":memory:");
-    const dir = new URL("../../migrations/", import.meta.url);
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
       this.sqlite.exec(readFileSync(new URL(file, dir), "utf8"));
     }

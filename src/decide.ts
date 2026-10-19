@@ -7,6 +7,7 @@
 // anything the same request would fail with again throws LlmPermanentError.
 
 import { LlmPermanentError } from "./llm";
+import { info } from "./log";
 import type { Env } from "./types";
 
 export interface ChoiceQuestion {
@@ -66,6 +67,7 @@ export function pMax(a: ChoiceAnswer | ScoreAnswer): number {
 export const QUESTION_ID = /^[A-Za-z0-9_.-]+$/;
 
 export async function decide<Qs extends Record<string, Question>>(env: Env, req: DecideRequest<Qs>): Promise<Answers<Qs>> {
+  const started = Date.now();
   const res = await fetch(`${env.LLM_BASE_URL ?? "https://openrouter.ai/api"}/v1/systemone`, {
     method: "POST",
     headers: {
@@ -81,6 +83,7 @@ export async function decide<Qs extends Record<string, Question>>(env: Env, req:
       questions: req.questions,
     }),
   });
+  info("systemone call", { questions: Object.keys(req.questions), status: res.status, ms: Date.now() - started });
   const body = (await res.json().catch(() => null)) as { answers?: Record<string, unknown>; error?: { code?: unknown; message?: string } } | null;
   if (!res.ok) {
     const msg = `systemone ${res.status}: ${body?.error?.message ?? res.statusText}`;

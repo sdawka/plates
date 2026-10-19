@@ -119,4 +119,16 @@ Use two or three people (call them Dana, Bob, Tara). Everything below should als
 
 Also check once on real Cloudflare: two people confirming the same request at the same moment produces one set of items (the guard relies on `changes()` inside a D1 batch, which the tests only exercise on SQLite).
 
-Logs: `npx wrangler tail`. Jobs that fail every retry land in `plates-extract-dlq`.
+Logs: `npx wrangler tail`, or the logs app below. Jobs that fail every retry land in `plates-extract-dlq`.
+
+## Logs app (`logs/`)
+
+`plates-logs` is a Tail Worker: Cloudflare hands it every Plates invocation (HTTP request, queue batch, alarm) with its log lines and exceptions. It keeps them in its own D1 database (`plates-logs`, 14 days) and serves them at https://plates-logs.webisoft.workers.dev, with a page of recent requests and each ask's history. Plates writes one JSON line per Slack event, click, command, queue job and model call: ids and kinds, never message text.
+
+It only opens behind Cloudflare Access, and it checks the Access token itself, so it stays locked (403) until Access is set up:
+
+1. Cloudflare dashboard → **Workers & Pages** → `plates-logs` → **Settings** → **Domains & Routes** → `workers.dev` → **Enable Cloudflare Access**. Adjust the policy to who may see logs.
+2. The dialog shows the **audience (AUD) tag** and the JWKS URL, `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`. Put `https://<team>.cloudflareaccess.com` in `ACCESS_TEAM_DOMAIN` and the tag in `ACCESS_AUD` in `logs/wrangler.jsonc`, then `cd logs && npx wrangler deploy`.
+3. Optional: `cd logs && npx wrangler secret put SLACK_BOT_TOKEN` shows names instead of Slack ids.
+
+First setup: `cd logs && npx wrangler d1 create plates-logs` (id into `logs/wrangler.jsonc`), `npx wrangler d1 migrations apply plates-logs --remote`, `npx wrangler deploy`, then deploy Plates, which names it in `tail_consumers`.

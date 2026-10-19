@@ -1,0 +1,20 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Tail Worker for Plates: stores its logs and serves them behind Cloudflare Access.
+  "name": "plates-logs",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    { "binding": "LOGS", "database_name": "plates-logs", "database_id": "2ab721f8-29c7-4428-a1c3-0f7a551f0220", "migrations_dir": "migrations" },
+    { "binding": "APP", "database_name": "plates", "database_id": "c4d60bac-5986-4daa-9da6-85ede934ece0" }
+  ],
+  "vars": {
+    "RETENTION_DAYS": "14",
+    // From Zero Trust -> Access -> Applications -> this app: the team domain and the Application Audience (AUD) tag.
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+  // Optional secret: SLACK_BOT_TOKEN, to show names instead of Slack ids.
+}

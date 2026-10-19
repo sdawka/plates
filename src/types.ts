@@ -248,6 +248,10 @@ export type ExtractJob =
       messageTs: string; // the tagging message
       taggerId: string;
       text: string;
+      /** How the capture started. Default "mention". */
+      origin?: "mention" | "shortcut" | "command" | "dm";
+      /** Author of the captured message (shortcut), when known. */
+      sourceUserId?: string;
     }
   | {
       kind: "correct"; // plain-language reply to a pending confirmation
@@ -255,6 +259,16 @@ export type ExtractJob =
       userId: string;
       text: string;
       messageTs: string;
+    }
+  | {
+      kind: "intent"; // a reply in a thread with a confirmed request (Phase 2) — may become an action or proposal
+      channelId: string;
+      threadTs: string;
+      messageTs: string;
+      userId: string;
+      text: string;
+      files: { name: string | null; permalink: string | null }[];
+      links: string[];
     }
   | {
       kind: "clarify_reaction"; // unrecognised emoji on a pending confirmation

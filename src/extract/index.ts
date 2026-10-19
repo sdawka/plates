@@ -1,5 +1,6 @@
 // Extraction orchestration: turns queue jobs into persisted requests and effects.
 
+import { handleIntentJob } from "../intent";
 import { confirmRequest } from "../domain/service";
 import { getRequest, insertRequest, newId, updateRequest } from "../domain/repo";
 import {
@@ -259,5 +260,7 @@ export async function handleExtractJob(env: Env, job: ExtractJob): Promise<Effec
       return handleCorrect(env, job);
     case "clarify_reaction":
       return handleClarifyReaction(env, job);
+    case "intent":
+      return handleIntentJob(env, job);
   }
 }

@@ -2,12 +2,15 @@
 
 import { handleOAuth } from "./oauth";
 import { dispatch } from "./effects";
-import { handleExtractJob } from "./extract/index";
+import { JOB_FAILED_REPLY, failureReply, handleExtractJob } from "./extract/index";
 import { handleSlashCommand } from "./slack/commands";
 import { handleEvent, type SlackEvent } from "./slack/events";
 import { handleInteraction, type InteractionPayload } from "./slack/interactions";
 import { verifySlackSignature } from "./slack/verify";
 import type { Env, ExtractJob } from "./types";
+
+/** Must match max_retries for the plates-extract consumer in wrangler.jsonc. */
+const QUEUE_MAX_RETRIES = 3;
 
 export { PlateKeeper } from "./keeper/PlateKeeper";
 
@@ -68,12 +71,25 @@ export default {
 
   async queue(batch: MessageBatch<ExtractJob>, env: Env): Promise<void> {
     for (const message of batch.messages) {
+      const job = message.body;
+      const lastAttempt = message.attempts > QUEUE_MAX_RETRIES;
       try {
-        await dispatch(env, await handleExtractJob(env, message.body));
-        message.ack();
+        const failed = await dispatch(env, await handleExtractJob(env, job));
+        // A new request whose message never got posted would sit unseen; redelivery re-renders it.
+        if (job.kind === "extract" && failed.some((e) => e.kind === "render_request") && !lastAttempt) {
+          message.retry({ delaySeconds: 15 });
+        } else {
+          message.ack();
+        }
       } catch (err) {
-        console.error("extract job failed", message.body.kind, err);
-        message.retry({ delaySeconds: 15 });
+        console.error("extract job failed", job.kind, `attempt ${message.attempts}`, err);
+        if (!lastAttempt) {
+          message.retry({ delaySeconds: 15 });
+          continue;
+        }
+        // Out of retries: don't leave people looking at "Reading the thread…" forever.
+        await dispatch(env, await failureReply(env, job, JOB_FAILED_REPLY).catch(() => []));
+        message.ack();
       }
     }
   },

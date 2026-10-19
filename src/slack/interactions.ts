@@ -150,7 +150,8 @@ async function onBlockAction(env: Env, p: BlockActionsPayload): Promise<void> {
   if (action.action_id === BUMP_ACTION_ID && action.value) return bump(env, p, action.value);
   if (action.action_id === OAUTH_DISCONNECT_ACTION_ID) {
     await disconnect(env, p.user.id);
-    return dispatch(env, [{ kind: "refresh_home", userId: p.user.id }]);
+    await dispatch(env, [{ kind: "refresh_home", userId: p.user.id }]);
+    return;
   }
   if (action.action_id === SETTINGS_OPEN_ACTION_ID) return openSettings(env, p.trigger_id ?? "", p.user.id);
   if (action.action_id === ASK_MENU_ACTION_ID) {

@@ -1,10 +1,11 @@
 // Extraction orchestration: turns queue jobs into persisted requests and effects.
 
+import { LlmPermanentError } from "../llm";
 import { handleIntentJob } from "../intent";
 import { connectUrl, getUserToken } from "../oauth";
 import { SlackApiError, slackCall } from "../slack/api";
 import { confirmRequest } from "../domain/service";
-import { getRequest, insertRequest, newId, updateRequest } from "../domain/repo";
+import { getRequest, insertRequest, insertRequestStmt, newId, updateRequest } from "../domain/repo";
 import {
   TransitionError,
   type DraftAsk,
@@ -138,12 +139,15 @@ function newRequestRow(
 async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract" }>): Promise<Effect[]> {
   const threadTs = job.threadTs ?? job.messageTs;
 
-  // Queue redelivery: this exact tag message already produced a request (any status).
-  const dup = await env.DB
-    .prepare("SELECT id FROM requests WHERE tag_message_ts = ? AND (channel_id = ? OR tagged_by_id = ?) LIMIT 1")
+  // Queue redelivery: this exact tag message already produced its requests (any status).
+  // Re-render any whose message never got posted (e.g. Slack failed on the first attempt).
+  const existing = await env.DB
+    .prepare("SELECT id, message_ts FROM requests WHERE tag_message_ts = ? AND (channel_id = ? OR tagged_by_id = ?)")
     .bind(job.messageTs, job.channelId, job.taggerId)
-    .first<{ id: string }>();
-  if (dup) return [];
+    .all<{ id: string; message_ts: string | null }>();
+  if (existing.results.length > 0) {
+    return existing.results.filter((r) => !r.message_ts).map((r): Effect => ({ kind: "render_request", requestId: r.id }));
+  }
 
   let ctx: ConversationContext;
   let readEnv: Env = env; // credentials that can read the source conversation
@@ -157,7 +161,11 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
     if (job.origin !== "shortcut") return [reply(job.channelId, threadTs, INVITE_REPLY)];
     const token = await getUserToken(env, job.taggerId);
     kind = await classifyChannel(env, job, token);
-    if (kind !== "im" && kind !== "mpim") return [reply(job.channelId, threadTs, INVITE_REPLY)];
+    if (kind !== "im" && kind !== "mpim") {
+      // The bot isn't in that channel, so it can't reply there either: tell the tagger directly.
+      await slackCall(env, "chat.postMessage", { channel: job.taggerId, text: INVITE_REPLY });
+      return [];
+    }
     dmFallback = true;
     let viaToken: ConversationContext | null = null;
     if (token) {
@@ -220,12 +228,12 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
   const effects: Effect[] = [];
   const people: (string | null)[] = [job.taggerId];
   const keepers: (string | null)[] = [];
-  for (const g of groups) {
-    const row = newRequestRow(g, { ...target, taggerId: job.taggerId, tagMessageTs: job.messageTs });
-    await insertRequest(env.DB, row);
+  const rows = groups.map((g) => newRequestRow(g, { ...target, taggerId: job.taggerId, tagMessageTs: job.messageTs }));
+  await env.DB.batch(rows.map((row) => insertRequestStmt(env.DB, row))); // all groups or none
+  for (const row of rows) {
     effects.push({ kind: "render_request", requestId: row.id });
-    people.push(g.requester_id, g.owner_id);
-    keepers.push(g.requester_id, g.owner_id);
+    people.push(row.requester_id, row.owner_id);
+    keepers.push(row.requester_id, row.owner_id);
   }
 
   if (single) {
@@ -375,6 +383,27 @@ async function handleClarifyReaction(env: Env, job: Extract<ExtractJob, { kind: 
 
 /** Handle one queued job. Persists requests, returns effects (render_request, thread_reply, ...). */
 export async function handleExtractJob(env: Env, job: ExtractJob): Promise<Effect[]> {
+  try {
+    return await routeJob(env, job);
+  } catch (e) {
+    if (!(e instanceof LlmPermanentError)) throw e;
+    console.error("extract job: permanent LLM failure", job.kind, e.message);
+    return failureReply(env, job, LLM_FAILED_REPLY);
+  }
+}
+
+const LLM_FAILED_REPLY = "Sorry, I couldn't work out the asks in this thread. Tag me again with a short note, e.g. `@plates @bob send the Q3 numbers`.";
+export const JOB_FAILED_REPLY = "Sorry, something went wrong while I was reading this. Please tag me again.";
+
+/** Where to tell people a job failed. Intent jobs fail silently: nobody asked the bot anything. */
+export async function failureReply(env: Env, job: ExtractJob, text: string): Promise<Effect[]> {
+  if (job.kind === "extract") return [reply(job.channelId, job.threadTs ?? job.messageTs, text)];
+  if (job.kind === "intent") return [];
+  const req = await getRequest(env.DB, job.requestId);
+  return req ? [reply(req.channel_id, req.thread_ts, text)] : [];
+}
+
+async function routeJob(env: Env, job: ExtractJob): Promise<Effect[]> {
   switch (job.kind) {
     case "extract":
       return handleExtract(env, job);

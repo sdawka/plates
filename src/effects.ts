@@ -10,17 +10,21 @@ import type { AskRow, Effect, Env, RequestRow } from "./types";
 
 type Of<K extends Effect["kind"]> = Extract<Effect, { kind: K }>;
 
-export async function dispatch(env: Env, effects: Effect[]): Promise<void> {
+/** Runs every effect; one failing never stops the others. Returns the ones that failed. */
+export async function dispatch(env: Env, effects: Effect[]): Promise<Effect[]> {
   const unique = [...new Map(effects.map((e) => [JSON.stringify(e), e])).values()];
+  const failed: Effect[] = [];
   await Promise.all(
     unique.map(async (effect) => {
       try {
         await run(env, effect);
       } catch (err) {
         console.error("effect failed", JSON.stringify(effect), err);
+        failed.push(effect);
       }
     }),
   );
+  return failed;
 }
 
 function run(env: Env, effect: Effect): Promise<unknown> {

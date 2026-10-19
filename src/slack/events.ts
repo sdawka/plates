@@ -146,5 +146,6 @@ async function confirmFromReaction(env: Env, req: RequestRow, userId: string): P
   await dispatch(env, effects);
 }
 
-const reply = (env: Env, req: RequestRow, text: string) =>
-  dispatch(env, [{ kind: "thread_reply", channelId: req.channel_id, threadTs: req.thread_ts, text }]);
+async function reply(env: Env, req: RequestRow, text: string): Promise<void> {
+  await dispatch(env, [{ kind: "thread_reply", channelId: req.channel_id, threadTs: req.thread_ts, text }]);
+}

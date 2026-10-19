@@ -116,7 +116,11 @@ describe("DM the bot can't read", () => {
       .bind("U_TAG", await encryptToken(KEY, "xoxp-user"), "im:history", 1).run();
     info = { is_channel: false, is_group: true, is_im: false, is_mpim: false, is_private: true };
     const effects = await handleExtractJob(env, job({ channelId: "G_PRIV" }));
-    expect(effects[0]).toMatchObject({ kind: "thread_reply", text: expect.stringContaining("/invite @plates") });
+    // The bot can't post in that channel, so the invite hint goes to the tagger's DM.
+    expect(effects).toEqual([]);
+    const hint = posts().at(-1)!;
+    expect(hint.form.channel).toBe("U_TAG");
+    expect(hint.form.text).toContain("/invite @plates");
     expect(requests()).toHaveLength(0);
     expect(calls.find((c) => c.method === "conversations.info")!.token).toBe("xoxp-user");
   });
@@ -136,7 +140,8 @@ describe("DM the bot can't read", () => {
     expect(requests()).toHaveLength(1);
     const priv = { ...job({ channelId: "G_PRIV", messageTs: "1700000009.000100" }), channelName: "privategroup" } as unknown as ExtractJob;
     const effects = await handleExtractJob(env, priv);
-    expect(effects[0]).toMatchObject({ kind: "thread_reply" });
+    expect(effects).toEqual([]);
+    expect(posts().at(-1)!.form.text).toContain("/invite @plates");
     expect(requests()).toHaveLength(1);
   });
 
@@ -151,8 +156,9 @@ describe("DM the bot can't read", () => {
 
   it("redelivery does not duplicate", async () => {
     await handleExtractJob(env, job());
+    // Not posted yet (no dispatch here), so redelivery re-renders the same request instead of making a new one.
     const again = await handleExtractJob(env, job());
-    expect(again).toEqual([]);
+    expect(again).toEqual([{ kind: "render_request", requestId: requests()[0]!.id }]);
     expect(requests()).toHaveLength(1);
   });
 

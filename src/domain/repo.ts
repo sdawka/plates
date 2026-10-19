@@ -40,11 +40,14 @@ export async function getRequestsInThread(db: D1Database, channelId: string, thr
   return r.results;
 }
 
-export async function insertRequest(db: D1Database, row: RequestRow): Promise<void> {
-  await db
+export function insertRequestStmt(db: D1Database, row: RequestRow): D1PreparedStatement {
+  return db
     .prepare(`INSERT INTO requests (${REQUEST_COLUMNS.join(", ")}) VALUES (${placeholders(REQUEST_COLUMNS.length)})`)
-    .bind(...REQUEST_COLUMNS.map((c) => row[c]))
-    .run();
+    .bind(...REQUEST_COLUMNS.map((c) => row[c]));
+}
+
+export async function insertRequest(db: D1Database, row: RequestRow): Promise<void> {
+  await insertRequestStmt(db, row).run();
 }
 
 export async function updateRequest(db: D1Database, id: string, patch: Partial<Omit<RequestRow, "id">>): Promise<void> {
@@ -94,6 +97,13 @@ export async function getAsksByRequest(db: D1Database, requestId: string): Promi
 export function insertAskStmt(db: D1Database, row: AskRow): D1PreparedStatement {
   return db
     .prepare(`INSERT INTO asks (${ASK_COLUMNS.join(", ")}) VALUES (${placeholders(ASK_COLUMNS.length)})`)
+    .bind(...ASK_COLUMNS.map((c) => row[c]));
+}
+
+/** Inserts the ask only if the previous statement in the same batch changed exactly one row. */
+export function insertAskIfChangedStmt(db: D1Database, row: AskRow): D1PreparedStatement {
+  return db
+    .prepare(`INSERT INTO asks (${ASK_COLUMNS.join(", ")}) SELECT ${placeholders(ASK_COLUMNS.length)} WHERE changes() = 1`)
     .bind(...ASK_COLUMNS.map((c) => row[c]));
 }
 

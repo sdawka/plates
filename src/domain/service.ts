@@ -19,7 +19,7 @@ import {
   getAsk,
   getEvent,
   getRequest,
-  insertAskStmt,
+  insertAskIfChangedStmt,
   insertEventIfChangedStmt,
   insertEventStmt,
   newId,
@@ -245,21 +245,19 @@ export async function confirmRequest(env: Env, requestId: string, userId: string
     tracker_url: null,
   }));
 
-  // Claim the confirmation first so two simultaneous confirms can't both create the asks.
-  const claim = await env.DB.prepare(
-    "UPDATE requests SET status = 'confirmed', confirmed_by = ?, confirmed_via = ?, updated_at = ? WHERE id = ? AND status = 'pending_confirmation'",
-  )
-    .bind(userId, via, now, req.id)
-    .run();
-  if (claim.meta.changes !== 1) throw new TransitionError("already confirmed", "This is already confirmed.");
-
-  await env.DB.batch([
-    ...asks.map((a) => insertAskStmt(env.DB, a)),
-    insertEventStmt(env.DB, {
+  // One transaction: claim the request, then each insert runs only if the statement before it
+  // changed a row. A second, concurrent confirm loses the claim and inserts nothing.
+  const [claim] = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE requests SET status = 'confirmed', confirmed_by = ?, confirmed_via = ?, updated_at = ? WHERE id = ? AND status = 'pending_confirmation'",
+    ).bind(userId, via, now, req.id),
+    ...asks.map((a) => insertAskIfChangedStmt(env.DB, a)),
+    insertEventIfChangedStmt(env.DB, {
       id: newId(), ask_id: null, request_id: req.id, actor_id: userId, kind: "confirm",
       from_state: null, to_state: null, note: null, via, source_ts: null, at: now, prev_json: null,
     }),
   ]);
+  if (claim?.meta.changes !== 1) throw new TransitionError("already confirmed", "This is already confirmed.");
 
   return [
     { kind: "render_request", requestId: req.id },

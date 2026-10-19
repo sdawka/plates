@@ -6,6 +6,7 @@ import worker from "../../src/index";
 import { PlateKeeper } from "../../src/keeper/PlateKeeper";
 import type { Env, ExtractJob } from "../../src/types";
 import { MemoryDurableObjectState } from "./cloudflare-workers";
+import { FakeTrackers } from "./fakeTrackers";
 import { ANTHROPIC_KEY, ANTHROPIC_URL, FakeAnthropic } from "./fakeAnthropic";
 import { asD1, makeDb, type FakeD1 } from "./fakeD1";
 import { API_URL, BOT_TOKEN, BOT_USER_ID, FakeSlack, type FakeUser, type StoredMessage } from "./fakeSlack";
@@ -181,6 +182,9 @@ export interface HarnessOptions {
   channels?: { id: string; name?: string; members: string[] }[];
 }
 
+/** base64 of 32 bytes, as `wrangler secret put TOKEN_ENC_KEY` expects. */
+export const TOKEN_ENC_KEY = btoa(String.fromCharCode(...Array.from({ length: 32 }, (_, i) => i * 7 + 1)));
+
 export const MONDAY_10AM = Date.UTC(2026, 9, 19, 10, 0, 0);
 export const CHANNEL = "C100";
 export const USERS = {
@@ -195,6 +199,7 @@ export class Harness {
   readonly net = new Network();
   readonly slack: FakeSlack;
   readonly anthropic = new FakeAnthropic();
+  readonly trackers: FakeTrackers;
   readonly queue = new FakeQueue();
   readonly db: FakeD1;
   readonly keepers: FakeKeeperNamespace;
@@ -205,6 +210,7 @@ export class Harness {
   constructor(opts: HarnessOptions = {}) {
     this.clock = new Clock(opts.now ?? MONDAY_10AM);
     this.slack = new FakeSlack(this.clock.now);
+    this.trackers = new FakeTrackers(this.clock.now);
     this.db = makeDb();
     this.keepers = new FakeKeeperNamespace(() => this.env);
     this.env = {
@@ -219,12 +225,16 @@ export class Harness {
       SLACK_API_URL: API_URL,
       ANTHROPIC_BASE_URL: ANTHROPIC_URL,
       PUBLIC_URL: "https://plates.test",
+      SLACK_CLIENT_ID: "111.222",
+      SLACK_CLIENT_SECRET: "client-secret",
+      TOKEN_ENC_KEY: TOKEN_ENC_KEY,
       ...opts.env,
     } as unknown as Env;
     this.queue.deliver = (batch) => (worker as { queue: (b: unknown, e: Env) => Promise<void> }).queue(batch, this.env);
 
     this.slack.attach(this.net);
     this.anthropic.attach(this.net);
+    this.trackers.attach(this.net);
     this.net.install();
     this.ingress = new SlackIngress((req) => this.fetch(req), this.clock.now, this.slack);
 
@@ -278,7 +288,7 @@ export class Harness {
   async say(o: { channel?: string; user: string; text: string; thread_ts?: string; files?: Obj[] }): Promise<StoredMessage> {
     const channel = o.channel ?? CHANNEL;
     const msg = this.slack.addHumanMessage({ ...o, channel });
-    const m = { channel, user: o.user, text: o.text, ts: msg.ts, thread_ts: o.thread_ts };
+    const m = { channel, user: o.user, text: o.text, ts: msg.ts, thread_ts: o.thread_ts, files: o.files };
     await this.expectOk(this.ingress.event(this.ingress.messageEvent(m)));
     if (o.text.includes(`<@${BOT_USER_ID}>`)) await this.expectOk(this.ingress.event(this.ingress.appMentionEvent(m)));
     return msg;

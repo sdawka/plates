@@ -17,6 +17,20 @@ function configured(env: Env): env is OAuthEnv {
 
 // ---------- encoding ----------
 
+/** Throws a clear error unless TOKEN_ENC_KEY is base64 for exactly 32 bytes. */
+function checkKey(keyB64: string): Uint8Array {
+  let raw: Uint8Array | null = null;
+  try {
+    raw = b64decode(keyB64);
+  } catch {
+    // fall through
+  }
+  if (!raw || raw.length !== 32) {
+    throw new Error("TOKEN_ENC_KEY must be base64 for exactly 32 bytes (generate one with: openssl rand -base64 32)");
+  }
+  return raw;
+}
+
 function b64encode(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
@@ -36,7 +50,7 @@ const b64urlDecode = (s: string) => b64decode(s.replace(/-/g, "+").replace(/_/g,
 // ---------- state ----------
 
 async function stateKey(keyB64: string): Promise<CryptoKey> {
-  const root = await crypto.subtle.importKey("raw", b64decode(keyB64), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const root = await crypto.subtle.importKey("raw", checkKey(keyB64), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const derived = await crypto.subtle.sign("HMAC", root, enc.encode("plates-oauth-state"));
   return crypto.subtle.importKey("raw", derived, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
@@ -68,7 +82,7 @@ export async function verifyState(keyB64: string, state: string, now = Date.now(
 // ---------- token encryption ----------
 
 async function aesKey(keyB64: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", b64decode(keyB64), "AES-GCM", false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", checkKey(keyB64), "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
 /** base64(iv ‖ ciphertext) with a random 12-byte IV. */

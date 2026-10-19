@@ -51,9 +51,7 @@ describe("Home tab stays within Slack's limits", () => {
 });
 
 describe("thread messages stay within 50 blocks", () => {
-  // src gap: extraction does not cap the number of asks per request, and a confirmed request renders one
-  // section per ask plus a header, so >49 asks make chat.postMessage fail with invalid_blocks.
-  // Fix: cap asks per request in extraction validation (or paginate the live message).
+  // regression: was a src bug, now fixed
   it("a request with 60 asks can be confirmed and rendered", async () => {
     const root = await h.say({ user: USERS.dana, text: `<@${USERS.bob}> lots of work for you` });
     h.anthropic.queueToolUse("record_asks", {

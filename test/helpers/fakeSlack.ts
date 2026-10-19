@@ -46,6 +46,7 @@ export interface FakeChannel {
   is_private: boolean;
   /** For IMs: the human on the other side. */
   imUser?: string;
+  is_mpim?: boolean;
   members: Set<string>;
   messages: StoredMessage[];
 }
@@ -145,6 +146,20 @@ export class FakeSlack {
       ch = { id, name: id, is_im: true, is_private: true, imUser: userId, members: new Set([BOT_USER_ID, userId]), messages: [] };
       this.channels.set(id, ch);
     }
+    return ch;
+  }
+
+  /** A DM between two humans: the bot is not a member (like a real 1:1 DM). */
+  addDirect(id: string, a: string, b: string): FakeChannel {
+    const ch: FakeChannel = { id, name: id, is_im: true, is_private: true, imUser: b, members: new Set([a, b]), messages: [] };
+    this.channels.set(id, ch);
+    return ch;
+  }
+
+  /** A group DM (mpim) between humans; the bot is not a member. */
+  addGroupDm(id: string, users: string[]): FakeChannel {
+    const ch: FakeChannel = { id, name: `mpdm-${users.join("--")}-1`, is_im: false, is_private: true, is_mpim: true, members: new Set(users), messages: [] };
+    this.channels.set(id, ch);
     return ch;
   }
 
@@ -307,6 +322,7 @@ export class FakeSlack {
 
   private identity(token: string | null): Identity {
     const id = token ? this.tokens.get(token) : undefined;
+    if (!token) throw new SlackError("not_authed");
     if (!id) throw new SlackError("invalid_auth");
     return id;
   }
@@ -325,6 +341,7 @@ export class FakeSlack {
     }
     switch (method) {
       case "auth.test": return this.authTest(who);
+      case "auth.revoke": return this.authRevoke(a, token!);
       case "chat.postMessage": return this.postMessage(a, who);
       case "chat.update": return this.update(a, who);
       case "chat.delete": return this.deleteMessage(a, who);
@@ -384,7 +401,8 @@ export class FakeSlack {
   private content(a: Obj, opts: { requireContent: boolean }): { text: string; blocks?: Obj[]; attachments?: Obj[] } {
     if (a.text !== undefined && typeof a.text !== "string") throw invalidArgs("text must be a string");
     const text = (a.text as string | undefined) ?? "";
-    if (text.length > 40000) throw new SlackError("msg_too_long");
+    // Docs: chat.postMessage truncates text over 40000 chars; chat.update rejects text over 4000 with msg_too_long.
+    if (opts.requireContent === false && text.length > 4000) throw new SlackError("msg_too_long");
     if (a.blocks !== undefined) this.checkBlocks(a.blocks, "message");
     const blocks = a.blocks as Obj[] | undefined;
     const attachments = a.attachments as Obj[] | undefined;
@@ -427,6 +445,13 @@ export class FakeSlack {
     };
   }
 
+  /** Docs: auth.revoke -> {ok, revoked:true}; `test=true` revokes nothing. */
+  private authRevoke(a: Obj, token: string): Obj {
+    if (this.bool(a, "test")) return { revoked: false };
+    this.tokens.delete(token);
+    return { revoked: true };
+  }
+
   private postMessage(a: Obj, who: Identity): Obj {
     const channel = this.str(a, "channel");
     const { text, blocks, attachments } = this.content(a, { requireContent: true });
@@ -445,8 +470,7 @@ export class FakeSlack {
       ...(attachments ? { attachments } : {}),
     };
     ch.messages.push(msg);
-    const warnings = blocks && !text ? ["missing_text_or_fallback_or_attachments"] : [];
-    return { channel: ch.id, ts: msg.ts, message: { ...msg }, ...(warnings.length ? { warning: warnings.join(","), response_metadata: { warnings } } : {}) };
+    return { channel: ch.id, ts: msg.ts, message: { ...msg } };
   }
 
   private update(a: Obj, who: Identity): Obj {
@@ -458,8 +482,10 @@ export class FakeSlack {
     if (msg.user !== who.userId) throw new SlackError("cant_update_message");
     if (a.text === undefined && !blocks && !attachments) throw new SlackError("no_text");
     // Per the docs, fields that are omitted keep their previous value.
+    // Docs: text without blocks removes the old blocks; omitting both keeps them.
     if (a.text !== undefined) msg.text = text;
     if (blocks) msg.blocks = blocks;
+    else if (a.text !== undefined) delete msg.blocks;
     if (attachments) msg.attachments = attachments;
     msg.edited = { user: who.userId, ts: this.nextTs() };
     return { channel: ch.id, ts, text: msg.text, message: { ...msg } };
@@ -564,6 +590,7 @@ export class FakeSlack {
       is_channel: !ch.is_im && !ch.is_private,
       is_group: !ch.is_im && ch.is_private,
       is_im: ch.is_im,
+      is_mpim: !!ch.is_mpim,
       is_private: ch.is_private,
       is_member: ch.members.has(BOT_USER_ID),
       ...(ch.imUser ? { user: ch.imUser } : {}),
@@ -662,6 +689,7 @@ export class FakeSlack {
   private checkView(a: Obj, type: "modal" | "home"): Obj {
     if (a.view === undefined) throw invalidArgs("missing required field: view");
     if (typeof a.view !== "object" || a.view === null) throw invalidArgs("view must be an object");
+    if (JSON.stringify(a.view).length > 250_000) throw new SlackError("view_too_large");
     const errors = validateView(a.view, type);
     if (errors.length) throw new SlackError("invalid_blocks", errors.map((e) => `[ERROR] ${e}`));
     return a.view as Obj;
@@ -670,7 +698,7 @@ export class FakeSlack {
   private viewsPublish(a: Obj): Obj {
     const userId = this.str(a, "user_id");
     const view = this.checkView(a, "home");
-    if (!this.users.has(userId)) throw new SlackError("not_found");
+    if (!this.users.has(userId)) throw invalidArgs("user_id: unknown user");
     const prev = this.homeViews.get(userId);
     if (typeof a.hash === "string" && prev && a.hash !== prev.hash) throw new SlackError("hash_conflict");
     const v = this.makeView(view, "home", prev?.id);

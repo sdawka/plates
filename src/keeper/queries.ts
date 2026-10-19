@@ -27,3 +27,14 @@ export async function claimReminder(db: D1Database, ask: AskRow, now: number): P
     .run();
   return (r.meta.changes ?? 0) > 0;
 }
+
+/** Undo a claim whose DM failed, so the ladder retries. Only reverts if nothing moved the ask since the claim. */
+export async function rollbackReminder(db: D1Database, ask: AskRow, now: number): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE asks SET reminder_stage = ?, last_reminded_at = ?
+         WHERE id = ? AND reminder_stage = ? AND last_reminded_at = ?`,
+    )
+    .bind(ask.reminder_stage, ask.last_reminded_at, ask.id, ask.reminder_stage + 1, now)
+    .run();
+}

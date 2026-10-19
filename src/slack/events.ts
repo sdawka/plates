@@ -54,6 +54,8 @@ export async function handleEvent(env: Env, event: SlackEvent, ec: EventContext)
 
 async function onMention(env: Env, e: MessageLike): Promise<void> {
   if (!e.user || e.bot_id) return;
+  // A mention inside a thread that already has a request is a correction or a follow-up, not a new capture.
+  if (e.thread_ts && e.thread_ts !== e.ts && (await routeThreadReply(env, e, e.user, e.thread_ts))) return;
   await env.EXTRACT_QUEUE.send({
     kind: "extract",
     channelId: e.channel,
@@ -70,9 +72,9 @@ async function onMention(env: Env, e: MessageLike): Promise<void> {
 const involved = (req: RequestRow, userId: string) =>
   userId === req.tagged_by_id || userId === req.requester_id || userId === req.owner_id;
 
-/** Human messages only; a file upload arrives as subtype "file_share". Edits, joins, bot posts are ignored. */
+/** Human messages only; a file upload arrives as subtype "file_share", a reply also sent to the channel as "thread_broadcast". Edits, joins, bot posts are ignored. */
 const isHumanMessage = (e: MessageLike, ec: EventContext) =>
-  (!e.subtype || e.subtype === "file_share") && !e.bot_id && !!e.user && e.user !== ec.botUserId;
+  (!e.subtype || e.subtype === "file_share" || e.subtype === "thread_broadcast") && !e.bot_id && !!e.user && e.user !== ec.botUserId;
 
 async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<void> {
   if (!isHumanMessage(e, ec) || !e.user) return;
@@ -96,11 +98,16 @@ async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<vo
   if (!e.thread_ts || e.thread_ts === e.ts) return;
   if (ec.botUserId && e.text?.includes(`<@${ec.botUserId}>`)) return; // arrives as app_mention
 
-  const requests = await getRequestsInThread(env.DB, e.channel, e.thread_ts);
+  await routeThreadReply(env, e, user, e.thread_ts);
+}
+
+/** Routes a reply in a thread to a correction or intent job; false when the thread has no request for this user. */
+async function routeThreadReply(env: Env, e: MessageLike, user: string, threadTs: string): Promise<boolean> {
+  const requests = await getRequestsInThread(env.DB, e.channel, threadTs);
   const pending = requests.filter((r) => r.status === "pending_confirmation").at(-1);
   if (pending && involved(pending, user)) {
     await env.EXTRACT_QUEUE.send({ kind: "correct", requestId: pending.id, userId: user, text: e.text ?? "", messageTs: e.ts });
-    return;
+    return true;
   }
 
   // Confirmed request: the requester, the owner, or an ask's current owner can act by replying.
@@ -111,10 +118,11 @@ async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<vo
       eligible = asks.some((a) => a.owner_id === user || a.requester_id === user);
     }
     if (eligible) {
-      await env.EXTRACT_QUEUE.send(buildIntentJob({ channel: e.channel, ts: e.ts, thread_ts: e.thread_ts, user, text: e.text, files: e.files }));
-      return;
+      await env.EXTRACT_QUEUE.send(buildIntentJob({ channel: e.channel, ts: e.ts, thread_ts: threadTs, user, text: e.text, files: e.files }));
+      return true;
     }
   }
+  return false;
 }
 
 // ---------- reaction_added ----------

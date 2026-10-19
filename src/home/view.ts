@@ -2,6 +2,7 @@
 
 import { OWNER_PLATE_STATES, SIZE_LABEL, type AskRow, type AskState, type DraftAsk, type RequestRow, type Size, type Urgency } from "../types";
 import { availableActions } from "../domain/transitions";
+import { isHttpUrl } from "../slack/format";
 import { dmAccessBlocks, type DmAccess } from "../slack/dmaccess";
 import { BUMP_INTERVAL_MS } from "../domain/service";
 import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, SETTINGS_OPEN_ACTION_ID, askActionId, type AskActionKind } from "../slack/actions";
@@ -149,7 +150,7 @@ function responseText(ask: AskRow): string {
     case "proposed":
       return `📥 ${title}\n${user(ask.requester_id)} asked you · ${metaParts(ask).join(" · ")}`;
     case "delivered":
-      return `📦 ${title}\n${who} says it's done · ${metaParts(ask).join(" · ")}${ask.done_link ? `\n<${ask.done_link}|Open the result>` : ""}`;
+      return `📦 ${title}\n${who} says it's done · ${metaParts(ask).join(" · ")}${ask.done_link ? `\n${isHttpUrl(ask.done_link) ? `<${ask.done_link}|Open the result>` : esc(ask.done_link)}` : ""}`;
     case "rejected":
       return `🚫 ${title}\n${who} turned this down · ${metaParts(ask).join(" · ")}`;
     default:

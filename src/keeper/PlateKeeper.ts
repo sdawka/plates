@@ -10,6 +10,8 @@ import {
   listPendingToConfirm,
   listPlate,
   nextSnoozeWake,
+  recordDigestSent,
+  recordRemindersSent,
   updateRequest,
   upsertPrefs,
 } from "../domain/repo";
@@ -17,7 +19,7 @@ import { dispatch } from "../effects";
 import { slackCall } from "../slack/api";
 import { TransitionError, type AskRow, type Effect, type Env, type UserPrefsRow } from "../types";
 import { buildDigest } from "./digest";
-import { claimReminder, listReminderCandidates } from "./queries";
+import { claimReminder, listReminderCandidates, rollbackReminder } from "./queries";
 import { selectDue } from "./reminders";
 import { computeDue, nextAlarmAt, type JobKind, type Snapshot } from "./schedule";
 import { isValidTimeZone, localDayKey } from "./time";
@@ -112,6 +114,7 @@ export class PlateKeeper extends DurableObject<Env> {
   }
 
   private async wakeSnoozes(userId: string, now: number): Promise<void> {
+    let skipped = 0;
     for (const ask of await listDueSnoozes(this.env.DB, userId, now)) {
       try {
         const effects = await applyAction(this.env, ask.id, { kind: "wake" }, "system", "system");
@@ -120,8 +123,11 @@ export class PlateKeeper extends DurableObject<Env> {
         // The ask changed meanwhile: it is no longer our business.
         if (!(err instanceof TransitionError)) throw err;
         console.warn(`keeper ${userId}: skip wake of ${ask.id}: ${err.message}`);
+        skipped++;
       }
     }
+    // A snooze we could not wake would re-alarm immediately; surface it so the alarm backs off.
+    if (skipped > 0) throw new Error(`could not wake ${skipped} snoozed ask(s)`);
   }
 
   private async sendDigest(userId: string, prefs: UserPrefsRow, now: number): Promise<void> {
@@ -129,13 +135,13 @@ export class PlateKeeper extends DurableObject<Env> {
     const heldBack = held && held.day === localDayKey(now, prefs.tz) ? held.n : 0;
     const digest = buildDigest(userId, await listPlate(this.env.DB, userId), heldBack);
     if (digest) await slackCall(this.env, "chat.postMessage", { channel: userId, text: digest.text, blocks: digest.blocks });
-    // Fresh prefs: the reminder counters may have moved since the snapshot.
-    await upsertPrefs(this.env.DB, { ...(await getPrefs(this.env.DB, userId)), last_digest_at: now });
+    await recordDigestSent(this.env.DB, userId, now);
   }
 
   /**
    * One DM listing every due ask, up to the daily cap. Each ask's ladder is advanced (claimed) before the
-   * DM goes out, so an alarm retry cannot double-send: delivery is at-most-once.
+   * DM goes out, so a concurrent or retried run cannot double-send. If the DM fails the claims are rolled back
+   * and the daily cap is untouched, so the ladder only advances for reminders that were delivered.
    */
   private async sendReminders(userId: string, now: number): Promise<void> {
     const prefs = await getPrefs(this.env.DB, userId);
@@ -148,11 +154,14 @@ export class PlateKeeper extends DurableObject<Env> {
     for (const ask of due) if (await claimReminder(this.env.DB, ask, now)) claimed.push(ask);
     if (claimed.length === 0) return;
 
-    const sentToday = prefs.reminders_day === day ? prefs.reminders_sent : 0;
-    await upsertPrefs(this.env.DB, { ...prefs, reminders_day: day, reminders_sent: sentToday + claimed.length });
-    await dispatch(this.env, [
+    const failed = await dispatch(this.env, [
       { kind: "dm", userId, template: "reminder", requestId: claimed[0]!.request_id, askIds: claimed.map((a) => a.id) },
     ]);
+    if (failed.length > 0) {
+      for (const ask of claimed) await rollbackReminder(this.env.DB, ask, now);
+      throw new Error("reminder DM failed");
+    }
+    await recordRemindersSent(this.env.DB, userId, day, claimed.length);
   }
 
   /** Whichever participant's keeper fires first claims nudged_at and notifies both. */

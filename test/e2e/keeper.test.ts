@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { CHANNEL, MONDAY_10AM, USERS, createHarness, type Harness } from "../helpers/env";
-import { flatText } from "../helpers/fakeSlack";
+import { API_URL, flatText } from "../helpers/fakeSlack";
+import { json } from "../helpers/net";
+import { seedRequest } from "../helpers/seed";
 import { tagAndConfirm, tagThread, text } from "../helpers/scenario";
 
 let h: Harness;
@@ -135,8 +137,7 @@ describe("unconfirmed requests: nudge, discard, Home, confirm", () => {
   });
 });
 
-// src bug: src/slack/interactions.ts confirmRequestAction() hardcodes via "button", so a confirm from the
-// Home tab is recorded as "button" although viaOf(p) would say "home". Fix: pass viaOf(p) through.
+// regression: was a src bug, now fixed
 it("records via=home when a request is confirmed from the Home tab", async () => {
   h = createHarness();
   const t = await tagThread(h);
@@ -145,4 +146,101 @@ it("records via=home when a request is confirmed from the Home tab", async () =>
   await h.openHome(USERS.dana);
   await h.clickHome(USERS.dana, "req:confirm", t.requestId);
   expect(h.requests()[0]!.confirmed_via).toBe("home");
+});
+
+// ---------- keeper robustness ----------
+
+const MIN = 60_000;
+const FRI_10AM = MONDAY_10AM - 3 * 24 * HOUR;
+const prefsRow = (u: string) => h.q("SELECT * FROM user_prefs WHERE user_id = ?", u)[0]!;
+
+/** Routes chat.postMessage through `hook`; the hook may return a Response to replace Slack's answer. */
+function interceptPostMessage(hook: (req: Request) => Response | void | Promise<Response | void>) {
+  h.net.route(`${API_URL}/chat.postMessage`, async (req) => {
+    const early = await hook(req.clone());
+    if (early) return early;
+    return (h.slack as unknown as { handleApi(r: Request): Promise<Response> }).handleApi(req);
+  });
+}
+
+/** A proposed ask on bob's plate whose first reminder is due at MONDAY_10AM. */
+async function seedDueReminder() {
+  const { asks } = await seedRequest(h, {}, [{ state: "proposed", updated_at: FRI_10AM, created_at: FRI_10AM }]);
+  await h.keepers.get(h.env.KEEPER.idFromName(USERS.bob) as never).reschedule(USERS.bob);
+  return asks[0]!.id;
+}
+
+describe("keeper: failed sends and concurrent writes", () => {
+  it("a failed reminder DM leaves the ladder and daily count alone, and the next run sends it", async () => {
+    h = createHarness();
+    const id = await seedDueReminder();
+    let failing = true;
+    interceptPostMessage(() => (failing ? json({ ok: false, error: "fatal_error" }) : undefined));
+
+    await h.fireAlarms(MONDAY_10AM);
+    expect(h.q("SELECT reminder_stage, last_reminded_at FROM asks WHERE id = ?", id)[0]).toEqual({ reminder_stage: 0, last_reminded_at: null });
+    expect(prefsRow(USERS.bob).reminders_sent ?? 0).toBe(0);
+    expect(h.slack.dmTexts(USERS.bob)).toHaveLength(0);
+    expect(await h.keepers.alarmOf(USERS.bob)).toBeGreaterThanOrEqual(MONDAY_10AM + 5 * MIN);
+
+    failing = false;
+    await h.fireAlarms(MONDAY_10AM + 6 * MIN);
+    expect(h.q("SELECT reminder_stage, last_reminded_at FROM asks WHERE id = ?", id)[0]).toEqual({
+      reminder_stage: 1,
+      last_reminded_at: MONDAY_10AM + 6 * MIN,
+    });
+    expect(prefsRow(USERS.bob).reminders_sent).toBe(1);
+    expect(h.slack.dmTexts(USERS.bob).length).toBeGreaterThan(0);
+  });
+
+  it("a snooze that cannot be woken does not re-arm the alarm immediately", async () => {
+    h = createHarness();
+    const { asks } = await seedRequest(h, {}, [{ state: "snoozed", snoozed_from: "accepted", snoozed_until: MONDAY_10AM - HOUR }]);
+    // Race: another writer touches the ask between the keeper's read and its save, so the wake is refused.
+    const real = h.env.DB;
+    let raced = false;
+    (h.env as { DB: D1Database }).DB = new Proxy(real, {
+      get(t, k) {
+        const v = (t as never)[k] as unknown;
+        if (k !== "batch") return typeof v === "function" ? v.bind(t) : v;
+        return async (stmts: D1PreparedStatement[]) => {
+          if (!raced) {
+            raced = true;
+            await real.prepare("UPDATE asks SET updated_at = updated_at + 1 WHERE id = ?").bind(asks[0]!.id).run();
+          }
+          return real.batch(stmts);
+        };
+      },
+    });
+    await h.keepers.get(h.env.KEEPER.idFromName(USERS.bob) as never).reschedule(USERS.bob);
+    await h.fireAlarms(MONDAY_10AM);
+    expect(raced).toBe(true);
+    expect(h.asks()[0]!.state).toBe("snoozed");
+    expect(await h.keepers.alarmOf(USERS.bob)).toBeGreaterThanOrEqual(MONDAY_10AM + 5 * MIN);
+
+    // After the backoff the wake goes through.
+    await h.fireAlarms(MONDAY_10AM + 6 * MIN);
+    expect(h.asks()[0]).toMatchObject({ state: "accepted", snoozed_until: null });
+  });
+
+  it("settings saved while a digest is being sent survive it", async () => {
+    h = createHarness();
+    await seedRequest(h, {}, [{ state: "accepted", accepted_at: MONDAY_10AM }]);
+    await h.keepers.get(h.env.KEEPER.idFromName(USERS.bob) as never).reschedule(USERS.bob);
+    interceptPostMessage(async () => {
+      await h.env.DB.prepare("UPDATE user_prefs SET max_reminders_per_day = 7, work_end_hour = 18 WHERE user_id = ?").bind(USERS.bob).run();
+    });
+    await h.fireAlarms(MONDAY_10AM);
+    expect(prefsRow(USERS.bob)).toMatchObject({ max_reminders_per_day: 7, work_end_hour: 18, last_digest_at: MONDAY_10AM });
+  });
+
+  it("settings saved while a reminder is being sent survive it", async () => {
+    h = createHarness();
+    await seedDueReminder();
+    interceptPostMessage(async () => {
+      await h.env.DB.prepare("UPDATE user_prefs SET max_reminders_per_day = 7, work_end_hour = 18 WHERE user_id = ?").bind(USERS.bob).run();
+    });
+    await h.fireAlarms(MONDAY_10AM);
+    expect(prefsRow(USERS.bob)).toMatchObject({ max_reminders_per_day: 7, work_end_hour: 18, reminders_sent: 1 });
+  });
 });

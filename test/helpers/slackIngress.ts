@@ -68,7 +68,7 @@ export class SlackIngress {
     return this.send(await this.signed("/slack/events", body, "application/json", o));
   }
 
-  messageEvent(m: { channel: string; user: string; text: string; ts: string; thread_ts?: string }): Obj {
+  messageEvent(m: { channel: string; user: string; text: string; ts: string; thread_ts?: string; files?: Obj[] }): Obj {
     const ch = this.slack.channel(m.channel);
     return {
       type: "message",
@@ -78,7 +78,8 @@ export class SlackIngress {
       ...(m.thread_ts ? { thread_ts: m.thread_ts } : {}),
       channel: m.channel,
       event_ts: m.ts,
-      channel_type: ch.is_im ? "im" : ch.is_private ? "group" : "channel",
+      channel_type: ch.is_im ? "im" : ch.is_mpim ? "mpim" : ch.is_private ? "group" : "channel",
+      ...(m.files?.length ? { subtype: "file_share", files: m.files, upload: false, display_as_bot: false } : {}),
       team: TEAM_ID,
       client_msg_id: crypto.randomUUID(),
       blocks: [{ type: "rich_text", block_id: "x", elements: [{ type: "rich_text_section", elements: [{ type: "text", text: m.text }] }] }],
@@ -200,6 +201,7 @@ export class SlackIngress {
   }
 
   messageAction(o: { user: string; callbackId: string; channel: string; ts: string }): Obj {
+    const ch = this.slack.channel(o.channel);
     return {
       type: "message_action",
       callback_id: o.callbackId,
@@ -208,8 +210,7 @@ export class SlackIngress {
       token: "deprecated-verification-token",
       trigger_id: this.slack.issueTrigger(o.user),
       team: { id: TEAM_ID, domain: "plates-test" },
-      channel: { id: o.channel, name: this.slack.channel(o.channel).name },
-      message_ts: o.ts,
+      channel: { id: o.channel, name: ch.is_im ? "directmessage" : ch.name },
       message: this.slack.message(o.channel, o.ts),
       response_url: this.slack.issueResponseUrl(),
     };
@@ -280,6 +281,20 @@ export function buildViewState(view: FakeView, answers: Record<string, unknown>,
         const t = answer === undefined ? ((el.initial_date_time as number | undefined) ?? null) : (answer as number | null);
         if (t === null && !optional) throw new Error(`required input "${id}" is empty`);
         v = { type: "datetimepicker", selected_date_time: t };
+        break;
+      }
+      case "timepicker": {
+        const t = answer === undefined ? ((el.initial_time as string | undefined) ?? null) : (answer as string | null);
+        if (t === null && !optional) throw new Error(`required input "${id}" is empty`);
+        if (t !== null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw new Error(`timepicker "${id}" needs HH:mm`);
+        v = { type: "timepicker", selected_time: t };
+        break;
+      }
+      case "number_input": {
+        const n = answer === undefined ? ((el.initial_value as string | undefined) ?? null) : answer === null ? null : String(answer);
+        if (n === null && !optional) throw new Error(`required input "${id}" is empty`);
+        // The real client blocks out-of-range numbers; sent anyway so the server-side check is covered.
+        v = { type: "number_input", value: n };
         break;
       }
       case "static_select": {

@@ -1,7 +1,7 @@
 // Executes the Effects returned by the domain service and the extraction module.
 // Each effect runs on its own; a failure is logged and never stops the others.
 
-import { getAsk, getAsksByRequest, getRequest, listEvents, updateRequest } from "./domain/repo";
+import { getAsk, getAsksByRequest, getRequest, listEvents } from "./domain/repo";
 import { publishHome } from "./home/home";
 import { syncTracker } from "./trackers";
 import { slackCall } from "./slack/api";
@@ -54,7 +54,14 @@ async function renderRequestEffect(env: Env, effect: Of<"render_request">): Prom
     unfurl_links: false,
     ...msg,
   });
-  await updateRequest(env.DB, req.id, { message_ts: posted.ts });
+  // Claim the slot; a concurrent render that posted first wins and we take our duplicate down.
+  const claim = await env.DB
+    .prepare("UPDATE requests SET message_ts = ?, updated_at = ? WHERE id = ? AND message_ts IS NULL")
+    .bind(posted.ts, Date.now(), req.id)
+    .run();
+  if (!claim.meta.changes) {
+    await slackCall(env, "chat.delete", { channel: req.channel_id, ts: posted.ts });
+  }
 }
 
 async function permalinkFor(env: Env, req: RequestRow): Promise<string | null> {

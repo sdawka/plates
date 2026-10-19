@@ -22,7 +22,7 @@ export function sizeUrgency(a: Pick<AskRow | DraftAsk, "size" | "urgency">): str
   return `${SIZE_LABEL[a.size]} · ${urgencyLabel[a.urgency]}`;
 }
 
-/** Only http(s) links are rendered as links. */
-export const isHttpUrl = (s: string) => /^https?:\/\/\S+$/i.test(s);
+/** Only http(s) links are rendered as links. Rejects < > | so a URL can't inject Slack control tokens. */
+export const isHttpUrl = (s: string) => /^https?:\/\/[^\s<>|]+$/i.test(s);
 
 export const link = (url: string, text: string) => `<${url}|${esc(text)}>`;

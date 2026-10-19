@@ -137,9 +137,7 @@ describe("undoEvent", () => {
     expect((await ask()).state).toBe("in_progress");
   });
 
-  // src bug: undo restores the whole pre-action snapshot, so fields written after the action by other
-  // flows (here a bump, which does not touch updated_at) are rolled back and the requester may bump again.
-  // Fix: restore only the fields the action changed, or refuse undo / re-apply bookkeeping columns.
+  // regression: was a src bug, now fixed
   it("keeps a bump that happened after the action", async () => {
     const eventId = await doneByOwner(); // moves to the requester plate
     const accept = await seedRequest({ env }, { id: "r3" }, [{ id: "a3" }]);
@@ -193,10 +191,7 @@ describe("bumpAsk", () => {
     expect((await events()).filter((e) => e.kind === "bump")).toHaveLength(2);
   });
 
-  // src bug (src/domain/service.ts bumpAsk): the JS guard allows a bump at exactly 20h
-  // (`now - last < INTERVAL` is false) but the SQL guard `last_bumped_at < now - INTERVAL` is false too,
-  // so the boundary bump fails with "bumped concurrently" / "You've already bumped this today".
-  // Fix: use `last_bumped_at <= ?` in the UPDATE.
+  // regression: was a src bug, now fixed
   it("allows a bump exactly 20 hours after the previous one", async () => {
     await bumpAsk(env, askId, REQ, "button");
     advance(BUMP_INTERVAL_MS);

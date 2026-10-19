@@ -28,6 +28,7 @@ export class ChannelUnreadableError extends Error {}
 
 const UNREADABLE = new Set(["not_in_channel", "channel_not_found", "missing_scope", "no_permission"]);
 const MAX_THREAD_MESSAGES = 200;
+const MAX_THREAD_PAGES = 30; // read to the end of long threads so the newest messages are seen
 const MAX_HISTORY_MESSAGES = 30;
 const HISTORY_WINDOW_MS = 24 * 3600 * 1000;
 const MAX_MENTION_LOOKUPS = 30;
@@ -63,14 +64,17 @@ async function guarded<T>(fn: () => Promise<T>): Promise<T> {
 export async function fetchThread(env: Env, channel: string, threadTs: string): Promise<SlackMessage[]> {
   const all: SlackMessage[] = [];
   let cursor: string | undefined;
+  let pages = 0;
   do {
     const res: RepliesResponse = await guarded(() =>
       slackCall<RepliesResponse>(env, "conversations.replies", { channel, ts: threadTs, limit: 100, ...(cursor ? { cursor } : {}) }),
     );
     all.push(...(res.messages ?? []));
     cursor = res.response_metadata?.next_cursor || undefined;
-  } while (cursor && all.length < MAX_THREAD_MESSAGES);
-  return all.slice(0, MAX_THREAD_MESSAGES);
+  } while (cursor && ++pages < MAX_THREAD_PAGES);
+  if (all.length <= MAX_THREAD_MESSAGES) return all;
+  // Keep the root plus the most recent messages so the tag message is always included.
+  return [all[0]!, ...all.slice(-(MAX_THREAD_MESSAGES - 1))];
 }
 
 /** Last ~30 messages / 24h ending at (and including) `endTs`, oldest first. */

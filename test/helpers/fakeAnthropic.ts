@@ -48,6 +48,13 @@ export class FakeAnthropic {
   private errorQueue: Scripted[] = [];
   private n = 0;
 
+  /**
+   * Documented (tool use > "Forcing tool use"): Opus 5.5, Sonnet 5.5, Fable 5.1 and Mythos 5.1 answer a 400 to
+   * tool_choice any/tool; Haiku 5.5 accepts it. Off by default so the rest of the suite can exercise the app
+   * logic; e2e/docs.test.ts turns it on to show the app's real model config trips it.
+   */
+  rejectForcedToolOnNewModels = false;
+
   constructor(readonly apiKey = ANTHROPIC_KEY) {}
 
   attach(net: Network): void {
@@ -158,6 +165,8 @@ export class FakeAnthropic {
       if (!b.tools) throw bad("tool_choice: tools must be provided when tool_choice is set");
       if (!["auto", "any", "tool", "none"].includes(String(choice.type))) throw bad("tool_choice.type: must be auto, any, tool or none");
       if (choice.type === "tool" && !toolNames.includes(String(choice.name))) throw bad(`tool_choice.name: no tool named "${String(choice.name)}" in tools`);
+      if (this.rejectForcedToolOnNewModels && (choice.type === "tool" || choice.type === "any") && /^claude-(opus-5-5|sonnet-5-5|fable-5-1|mythos-5-1)/.test(String(b.model)))
+        throw bad(`tool_choice: forced tool use (type "${String(choice.type)}") is not supported by model ${String(b.model)}; use "auto" or "none"`);
     }
     return this.record(b, headers, "pending");
   }

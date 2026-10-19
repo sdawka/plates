@@ -12,7 +12,7 @@
 
   "queues": {
     "producers": [{ "binding": "EXTRACT_QUEUE", "queue": "plates-extract" }],
-    "consumers": [{ "queue": "plates-extract", "max_batch_size": 5, "max_retries": 3 }]
+    "consumers": [{ "queue": "plates-extract", "max_batch_size": 5, "max_batch_timeout": 1, "max_retries": 3, "dead_letter_queue": "plates-extract-dlq" }]
   },
 
   "durable_objects": {

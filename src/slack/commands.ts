@@ -3,7 +3,8 @@
 
 import { getPrefs } from "../domain/repo";
 import { loadDmAccess } from "../home/home";
-import type { Env } from "../types";
+import { TransitionError, type Env } from "../types";
+import type { Block } from "./blocks";
 import { slackCall, SlackApiError } from "./api";
 import { HELP_TEXT, commandPostText, parseSlashCommand, parseSlashText, type SlashCommand } from "./parse";
 import { buildSettingsModal } from "./settings";
@@ -43,13 +44,41 @@ export async function userTzOf(env: Env, userId: string): Promise<string> {
 
 /** Opens the settings modal; the time zone defaults to the Slack profile's when nothing is saved. */
 export async function openSettings(env: Env, triggerId: string, userId: string): Promise<void> {
+  await openModalLazily(env, triggerId, "Plates settings", async () => {
+    const prefs = await getPrefs(env.DB, userId);
+    const [tz, dm] = await Promise.all([
+      prefs.updated_at > 0 ? prefs.tz : userTzOf(env, userId),
+      loadDmAccess(env, userId).catch(() => undefined),
+    ]);
+    return buildSettingsModal(prefs, tz, dm);
+  });
+}
+
+const loadingView = (title: string, text: string, closable: boolean) => ({
+  type: "modal",
+  title: { type: "plain_text", text: title.slice(0, 24) },
+  ...(closable ? { close: { type: "plain_text", text: "Close" } } : {}),
+  blocks: [{ type: "section", text: { type: "mrkdwn", text } }],
+});
+
+/**
+ * views.open must land within 3s of the trigger_id, so open a placeholder right away and swap in the
+ * real view (built after slower D1 / Slack lookups) with views.update. A TransitionError from `build`
+ * is shown inside the modal.
+ */
+export async function openModalLazily(env: Env, triggerId: string, title: string, build: () => Promise<Block>): Promise<void> {
   if (!triggerId) return;
-  const prefs = await getPrefs(env.DB, userId);
-  const [tz, dm] = await Promise.all([
-    prefs.updated_at > 0 ? prefs.tz : userTzOf(env, userId),
-    loadDmAccess(env, userId).catch(() => undefined),
-  ]);
-  await slackCall(env, "views.open", { trigger_id: triggerId, view: buildSettingsModal(prefs, tz, dm) });
+  const opened = await slackCall<{ view: { id: string; hash: string } }>(env, "views.open", {
+    trigger_id: triggerId,
+    view: loadingView(title, "Loading…", false),
+  });
+  const { id, hash } = opened.view;
+  try {
+    await slackCall(env, "views.update", { view_id: id, hash, view: await build() });
+  } catch (err) {
+    if (!(err instanceof TransitionError)) throw err;
+    await slackCall(env, "views.update", { view_id: id, hash, view: loadingView(title, err.userMessage, true) });
+  }
 }
 
 async function respond(url: string, text: string): Promise<void> {
@@ -61,13 +90,16 @@ async function respond(url: string, text: string): Promise<void> {
   });
 }
 
+/** The bot reposts user text, so <!channel>, <!here>, <!everyone> and <!subteam^…> must not stay live. */
+export const neutralizeBroadcasts = (text: string) => text.replaceAll("<!", "&lt;!");
+
 /** Post the text as the bot so the thread has a message to read, then queue extraction on it. */
 async function capture(env: Env, cmd: SlashCommand, text: string): Promise<void> {
   let ts: string;
   try {
     const posted = await slackCall<{ ts: string }>(env, "chat.postMessage", {
       channel: cmd.channelId,
-      text: commandPostText(cmd.userId, text),
+      text: commandPostText(cmd.userId, neutralizeBroadcasts(text)),
       unfurl_links: false,
     });
     ts = posted.ts;

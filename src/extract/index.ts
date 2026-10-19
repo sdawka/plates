@@ -142,11 +142,21 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
   // Queue redelivery: this exact tag message already produced its requests (any status).
   // Re-render any whose message never got posted (e.g. Slack failed on the first attempt).
   const existing = await env.DB
-    .prepare("SELECT id, message_ts FROM requests WHERE tag_message_ts = ? AND (channel_id = ? OR tagged_by_id = ?)")
+    .prepare("SELECT id, message_ts, channel_id FROM requests WHERE tag_message_ts = ? AND (channel_id = ? OR tagged_by_id = ?)")
     .bind(job.messageTs, job.channelId, job.taggerId)
-    .all<{ id: string; message_ts: string | null }>();
+    .all<{ id: string; message_ts: string | null; channel_id: string }>();
   if (existing.results.length > 0) {
-    return existing.results.filter((r) => !r.message_ts).map((r): Effect => ({ kind: "render_request", requestId: r.id }));
+    const unposted = existing.results.filter((r) => !r.message_ts);
+    if (unposted.length === 0 && job.origin && job.origin !== "mention") {
+      // A deliberate re-capture of something already on a plate: say so instead of staying silent.
+      const first = existing.results[0]!;
+      const link = first.message_ts ? await getPermalink(env, first.channel_id, first.message_ts) : null;
+      await slackCall(env, "chat.postMessage", {
+        channel: job.taggerId,
+        text: link ? `That's already on a plate: ${link}` : "That's already on a plate.",
+      });
+    }
+    return unposted.map((r): Effect => ({ kind: "render_request", requestId: r.id }));
   }
 
   let ctx: ConversationContext;
@@ -328,14 +338,25 @@ async function handleCorrect(env: Env, job: Extract<ExtractJob, { kind: "correct
   for (const d of drafts) known[d.source_ts] = d.source_permalink;
   await attachPermalinks(env, req.channel_id, groups, known);
 
-  await updateRequest(env.DB, req.id, {
-    requester_id: first.requester_id,
-    owner_id: first.owner_id,
-    attribution_confidence: first.attribution_confidence,
-    attribution_reason: first.attribution_reason,
-    clarify_question: first.clarify_question,
-    draft_json: JSON.stringify(first.asks),
-  });
+  // Guarded: a concurrent confirm must win, so only update while still pending.
+  const upd = await env.DB
+    .prepare(
+      "UPDATE requests SET requester_id = ?, owner_id = ?, attribution_confidence = ?, attribution_reason = ?, clarify_question = ?, draft_json = ?, updated_at = ? WHERE id = ? AND status = 'pending_confirmation'",
+    )
+    .bind(
+      first.requester_id ?? null,
+      first.owner_id ?? null,
+      first.attribution_confidence,
+      first.attribution_reason ?? null,
+      first.clarify_question ?? null,
+      JSON.stringify(first.asks),
+      Date.now(),
+      req.id,
+    )
+    .run();
+  if (!upd.meta.changes) {
+    return [reply(req.channel_id, req.thread_ts, "That request was already confirmed, so I couldn't change it.")];
+  }
 
   const effects: Effect[] = [{ kind: "render_request", requestId: req.id }];
   const people: (string | null)[] = [req.tagged_by_id, req.requester_id, req.owner_id, first.requester_id, first.owner_id];

@@ -58,6 +58,16 @@ export async function updateRequest(db: D1Database, id: string, patch: Partial<O
     .run();
 }
 
+/** Like updateRequest, but only while the request is still pending_confirmation. Returns false if it lost the race. */
+export async function updateRequestIfPending(db: D1Database, id: string, patch: Partial<Omit<RequestRow, "id">>): Promise<boolean> {
+  const entries = Object.entries({ ...patch, updated_at: patch.updated_at ?? Date.now() });
+  const r = await db
+    .prepare(`UPDATE requests SET ${entries.map(([k]) => `${k} = ?`).join(", ")} WHERE id = ? AND status = 'pending_confirmation'`)
+    .bind(...entries.map(([, v]) => v ?? null), id)
+    .run();
+  return (r.meta.changes ?? 0) > 0;
+}
+
 /** Pending confirmations where the user is the requester, the owner or the tagger. */
 export async function listUnconfirmedFor(db: D1Database, userId: string): Promise<RequestRow[]> {
   const r = await db
@@ -152,6 +162,37 @@ export async function nextSnoozeWake(db: D1Database, ownerId: string): Promise<n
     .bind(ownerId)
     .first<{ t: number | null }>();
   return r?.t ?? null;
+}
+
+/** Targeted write of the digest timestamp; never touches settings columns saved meanwhile. */
+export async function recordDigestSent(db: D1Database, userId: string, now: number): Promise<void> {
+  const d = defaultPrefs(userId);
+  await db
+    .prepare(
+      `INSERT INTO user_prefs (user_id, tz, work_start_hour, work_end_hour, digest_time, max_reminders_per_day, last_digest_at,
+         reminders_day, reminders_sent, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0, ?)
+       ON CONFLICT(user_id) DO UPDATE SET last_digest_at = excluded.last_digest_at`,
+    )
+    .bind(userId, d.tz, d.work_start_hour, d.work_end_hour, d.digest_time, d.max_reminders_per_day, now, Date.now())
+    .run();
+}
+
+/** Targeted, atomic bump of the daily reminder counter (resets when the local day changed). */
+export async function recordRemindersSent(db: D1Database, userId: string, day: string, count: number): Promise<void> {
+  const d = defaultPrefs(userId);
+  await db
+    .prepare(
+      `INSERT INTO user_prefs (user_id, tz, work_start_hour, work_end_hour, digest_time, max_reminders_per_day, last_digest_at,
+         reminders_day, reminders_sent, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         reminders_sent = CASE WHEN user_prefs.reminders_day = excluded.reminders_day
+                               THEN user_prefs.reminders_sent + excluded.reminders_sent ELSE excluded.reminders_sent END,
+         reminders_day = excluded.reminders_day`,
+    )
+    .bind(userId, d.tz, d.work_start_hour, d.work_end_hour, d.digest_time, d.max_reminders_per_day, day, count, Date.now())
+    .run();
 }
 
 // ---------- Events ----------

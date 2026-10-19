@@ -4,16 +4,16 @@
 
 import { dispatch } from "../effects";
 import { applyAction, bumpAsk, confirmDiscarded } from "../domain/service";
-import { getAsk, getPrefs, getRequest, updateRequest, upsertPrefs } from "../domain/repo";
+import { getAsk, getPrefs, getRequest, updateRequestIfPending, upsertPrefs } from "../domain/repo";
 import { onProposalNo, onProposalPick, onProposalYes, onUndoClick, type ClickTarget } from "../intent/interact";
 import { availableActions } from "../domain/transitions";
 import { TransitionError, type AskAction, type Effect, type Env, type RequestRow } from "../types";
 import { slackCall } from "./api";
 import {
-  BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID,
+  ACTION_LABEL, BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID,
   parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta,
 } from "./actions";
-import { openSettings } from "./commands";
+import { openModalLazily, openSettings } from "./commands";
 import { OAUTH_DISCONNECT_ACTION_ID } from "./dmaccess";
 import { disconnect } from "../oauth";
 import { parseSettingsSubmission } from "./settings";
@@ -189,15 +189,20 @@ async function askAction(env: Env, p: BlockActionsPayload, kind: AskActionKind, 
     await dispatch(env, await applyAction(env, askId, action, p.user.id, via));
     return;
   }
-  const ask = await getAsk(env.DB, askId);
-  if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
-  if (!availableActions(ask, p.user.id).includes(kind)) {
-    throw new TransitionError(`${kind} unavailable`, "That isn't possible for this ask right now.");
-  }
   if (!p.trigger_id) return;
-  const tz = kind === "set_deadline" ? await userTz(env, p.user.id) : "UTC";
   const meta: ModalMeta = { askId, via };
-  await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: buildAskModal(kind, ask, meta, tz) });
+  const build = async () => {
+    const ask = await getAsk(env.DB, askId);
+    if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
+    if (!availableActions(ask, p.user.id).includes(kind)) {
+      throw new TransitionError(`${kind} unavailable`, "That isn't possible for this ask right now.");
+    }
+    const tz = kind === "set_deadline" ? await userTz(env, p.user.id) : "UTC";
+    return buildAskModal(kind, ask, meta, tz);
+  };
+  // Only set_deadline does a slow lookup (users.info); open it first and fill in after.
+  if (kind === "set_deadline") return openModalLazily(env, p.trigger_id, ACTION_LABEL[kind], build);
+  await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: await build() });
 }
 
 async function openEdit(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
@@ -245,7 +250,8 @@ async function submitEdit(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayl
 
   const parsed = parseEditSubmission(p.view.state.values, req);
   if (!parsed.ok) return errorsResponse(parsed.errors);
-  await updateRequest(env.DB, req.id, { ...parsed.value, attribution_confidence: 1, clarify_question: null });
+  const saved = await updateRequestIfPending(env.DB, req.id, { ...parsed.value, attribution_confidence: 1, clarify_question: null });
+  if (!saved) throw new TransitionError("lost race to confirm", "That request was already confirmed, so I couldn't change it.");
 
   const people = [req.requester_id, req.owner_id, parsed.value.requester_id, parsed.value.owner_id, req.tagged_by_id];
   const effects: Effect[] = [

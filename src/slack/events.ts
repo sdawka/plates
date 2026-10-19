@@ -1,0 +1,112 @@
+// Slack Events API handlers. Everything here runs after the 3s ack (ctx.waitUntil).
+
+import { dispatch } from "../effects";
+import { getRequestByMessage, getRequestsInThread } from "../domain/repo";
+import { confirmDiscarded, confirmRequest } from "../domain/service";
+import { publishHome } from "../home/home";
+import { TransitionError, type Effect, type Env, type RequestRow } from "../types";
+import { slackCall } from "./api";
+import { CONFIRM_REACTIONS } from "./actions";
+
+interface MessageLike {
+  type: "app_mention" | "message";
+  channel: string;
+  ts: string;
+  thread_ts?: string;
+  user?: string;
+  bot_id?: string;
+  subtype?: string;
+  text?: string;
+}
+interface ReactionAdded {
+  type: "reaction_added";
+  user: string;
+  reaction: string;
+  item: { type: string; channel?: string; ts?: string };
+}
+interface HomeOpened {
+  type: "app_home_opened";
+  user: string;
+  tab?: string;
+}
+export type SlackEvent = MessageLike | ReactionAdded | HomeOpened;
+
+export interface EventContext {
+  /** Our own bot user id, from the event envelope's `authorizations`. */
+  botUserId: string | null;
+}
+
+export async function handleEvent(env: Env, event: SlackEvent, ec: EventContext): Promise<void> {
+  switch (event.type) {
+    case "app_mention": return onMention(env, event);
+    case "message": return onMessage(env, event, ec);
+    case "reaction_added": return onReaction(env, event);
+    case "app_home_opened":
+      if (event.tab === "home") await publishHome(env, event.user);
+      return;
+  }
+}
+
+// ---------- app_mention ----------
+
+async function onMention(env: Env, e: MessageLike): Promise<void> {
+  if (!e.user || e.bot_id) return;
+  await env.EXTRACT_QUEUE.send({
+    kind: "extract",
+    channelId: e.channel,
+    threadTs: e.thread_ts ?? null,
+    messageTs: e.ts,
+    taggerId: e.user,
+    text: e.text ?? "",
+  });
+  await slackCall(env, "chat.postMessage", { channel: e.channel, thread_ts: e.thread_ts ?? e.ts, text: "Reading the thread…" });
+}
+
+// ---------- message in a thread ----------
+
+const involved = (req: RequestRow, userId: string) =>
+  userId === req.tagged_by_id || userId === req.requester_id || userId === req.owner_id;
+
+async function onMessage(env: Env, e: MessageLike, ec: EventContext): Promise<void> {
+  if (e.subtype || e.bot_id || !e.user || e.user === ec.botUserId) return;
+  if (!e.thread_ts || e.thread_ts === e.ts) return;
+  if (ec.botUserId && e.text?.includes(`<@${ec.botUserId}>`)) return; // arrives as app_mention
+
+  const requests = await getRequestsInThread(env.DB, e.channel, e.thread_ts);
+  const pending = requests.filter((r) => r.status === "pending_confirmation").at(-1);
+  if (!pending || !involved(pending, e.user)) return;
+  // Phase 1 only corrects pending confirmations. Acting on other replies is Phase 2.
+  await env.EXTRACT_QUEUE.send({ kind: "correct", requestId: pending.id, userId: e.user, text: e.text ?? "", messageTs: e.ts });
+}
+
+// ---------- reaction_added ----------
+
+const reactionName = (r: string) => r.split("::")[0] ?? r; // "+1::skin-tone-3" -> "+1"
+const isIn = (list: readonly string[], r: string) => list.includes(r);
+
+async function onReaction(env: Env, e: ReactionAdded): Promise<void> {
+  if (e.item.type !== "message" || !e.item.channel || !e.item.ts) return;
+  const req = await getRequestByMessage(env.DB, e.item.channel, e.item.ts);
+  if (!req || req.status === "confirmed" || !involved(req, e.user)) return;
+
+  const name = reactionName(e.reaction);
+  if (isIn(CONFIRM_REACTIONS.yes, name)) return confirmFromReaction(env, req, e.user);
+  if (isIn(CONFIRM_REACTIONS.no, name)) {
+    return reply(env, req, "What's off — the people, the items, or both? Just reply here.");
+  }
+  await env.EXTRACT_QUEUE.send({ kind: "clarify_reaction", requestId: req.id, userId: e.user, reaction: name });
+}
+
+async function confirmFromReaction(env: Env, req: RequestRow, userId: string): Promise<void> {
+  let effects: Effect[];
+  try {
+    effects = await (req.status === "discarded" ? confirmDiscarded : confirmRequest)(env, req.id, userId, "reaction");
+  } catch (err) {
+    if (err instanceof TransitionError) return reply(env, req, err.userMessage);
+    throw err;
+  }
+  await dispatch(env, effects);
+}
+
+const reply = (env: Env, req: RequestRow, text: string) =>
+  dispatch(env, [{ kind: "thread_reply", channelId: req.channel_id, threadTs: req.thread_ts, text }]);

@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "plates",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  "d1_databases": [
+    { "binding": "DB", "database_name": "plates", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+  ],
+
+  "queues": {
+    "producers": [{ "binding": "EXTRACT_QUEUE", "queue": "plates-extract" }],
+    "consumers": [{ "queue": "plates-extract", "max_batch_size": 5, "max_retries": 3 }]
+  },
+
+  "durable_objects": {
+    "bindings": [{ "name": "KEEPER", "class_name": "PlateKeeper" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlateKeeper"] }],
+
+  "vars": {
+    "EXTRACT_MODEL": "claude-sonnet-5-5",
+    "FAST_MODEL": "claude-haiku-5-5"
+  }
+  // Secrets (wrangler secret put): SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, ANTHROPIC_API_KEY
+}

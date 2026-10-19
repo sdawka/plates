@@ -1,0 +1,48 @@
+# Create the app at https://api.slack.com/apps → "From a manifest", then replace
+# WORKER_URL with your deployed Worker URL (e.g. https://plates.<account>.workers.dev).
+display_information:
+  name: Plates
+  description: Puts asks on the right person's plate and keeps them there until they're done.
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: plates
+    always_online: true
+  shortcuts:
+    - name: Put on someone's plate
+      type: message
+      callback_id: plates_capture
+      description: Turn this message into tracked asks
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+      - chat:write
+      - im:write
+      - users:read
+      - files:read
+      - reactions:read
+settings:
+  event_subscriptions:
+    request_url: WORKER_URL/slack/events
+    bot_events:
+      - app_mention
+      - app_home_opened
+      - message.channels
+      - message.groups
+      - message.im
+      - message.mpim
+      - reaction_added
+  interactivity:
+    is_enabled: true
+    request_url: WORKER_URL/slack/events
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

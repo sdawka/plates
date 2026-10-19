@@ -1,0 +1,219 @@
+// Slack interactivity: block_actions (buttons, menus) and view_submission (modals).
+// block_actions are acked immediately and processed in ctx.waitUntil. view_submission runs the
+// state change inline so TransitionErrors and validation problems can be shown inside the modal.
+
+import { dispatch } from "../effects";
+import { applyAction, confirmDiscarded } from "../domain/service";
+import { getAsk, getRequest, updateRequest } from "../domain/repo";
+import { availableActions } from "../domain/transitions";
+import { TransitionError, type AskAction, type Effect, type Env, type RequestRow } from "../types";
+import { slackCall } from "./api";
+import { NEEDS_MODAL, REQ_ACTIONS, parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta } from "./actions";
+import { ASK_MENU_ACTION_ID } from "./blocks";
+import {
+  EDIT_CALLBACK_ID, FIRST_BLOCK, buildAskModal, buildEditModal, parseAskSubmission, parseEditSubmission,
+  type EditMeta, type ViewValues,
+} from "./modals";
+
+interface ActionItem {
+  action_id: string;
+  value?: string;
+  selected_option?: { value: string };
+}
+interface PayloadBase {
+  user: { id: string };
+  trigger_id?: string;
+}
+export interface BlockActionsPayload extends PayloadBase {
+  type: "block_actions";
+  actions: ActionItem[];
+  channel?: { id: string };
+  container?: { channel_id?: string };
+  view?: { type?: string };
+}
+export interface ViewSubmissionPayload extends PayloadBase {
+  type: "view_submission";
+  view: { callback_id: string; private_metadata: string; state: { values: ViewValues } };
+}
+/** Message shortcut ("⋯ → Put on someone's plate"). */
+export interface MessageActionPayload extends PayloadBase {
+  type: "message_action";
+  callback_id: string;
+  channel: { id: string };
+  message: { ts: string; thread_ts?: string; text?: string };
+}
+export type InteractionPayload = BlockActionsPayload | ViewSubmissionPayload | MessageActionPayload;
+
+export const CAPTURE_SHORTCUT_ID = "plates_capture";
+
+const ok = () => new Response(null, { status: 200 });
+const errorsResponse = (errors: Record<string, string>) =>
+  new Response(JSON.stringify({ response_action: "errors", errors }), { headers: { "content-type": "application/json" } });
+
+export async function handleInteraction(env: Env, ctx: ExecutionContext, payload: InteractionPayload): Promise<Response> {
+  if (payload.type === "view_submission") return onViewSubmission(env, ctx, payload);
+  if (payload.type === "message_action") {
+    if (payload.callback_id === CAPTURE_SHORTCUT_ID) ctx.waitUntil(onCaptureShortcut(env, payload));
+    return ok();
+  }
+  ctx.waitUntil(
+    onBlockAction(env, payload).catch(async (err) => {
+      if (err instanceof TransitionError) return tellUser(env, payload, err.userMessage);
+      console.error("block_action failed", err);
+      return tellUser(env, payload, "Something went wrong. Please try again.");
+    }),
+  );
+  return ok();
+}
+
+/** Same pipeline as an @plates tag, with the shortcut's message as the tag message. */
+async function onCaptureShortcut(env: Env, p: MessageActionPayload): Promise<void> {
+  try {
+    await env.EXTRACT_QUEUE.send({
+      kind: "extract",
+      channelId: p.channel.id,
+      threadTs: p.message.thread_ts ?? null,
+      messageTs: p.message.ts,
+      taggerId: p.user.id,
+      text: p.message.text ?? "",
+    });
+  } catch (err) {
+    console.error("capture shortcut enqueue failed", err);
+  }
+}
+
+// ---------- helpers ----------
+
+export function viaOf(p: BlockActionsPayload): ModalMeta["via"] {
+  if (p.view?.type === "home") return "home";
+  const channel = p.channel?.id ?? p.container?.channel_id;
+  return channel?.startsWith("D") ? "dm" : "button";
+}
+
+/** Private feedback: ephemeral in the channel when there is one, otherwise a DM. */
+async function tellUser(env: Env, p: BlockActionsPayload, text: string): Promise<void> {
+  const channel = p.channel?.id ?? p.container?.channel_id;
+  try {
+    if (channel && p.view?.type !== "home") await slackCall(env, "chat.postEphemeral", { channel, user: p.user.id, text });
+    else await slackCall(env, "chat.postMessage", { channel: p.user.id, text });
+  } catch (err) {
+    console.error("tellUser failed", err);
+  }
+}
+
+async function userTz(env: Env, userId: string): Promise<string> {
+  try {
+    const r = await slackCall<{ user?: { tz?: string } }>(env, "users.info", { user: userId });
+    return r.user?.tz ?? "UTC";
+  } catch (err) {
+    console.error("users.info failed", err);
+    return "UTC";
+  }
+}
+
+const TZ_KINDS: ReadonlySet<AskActionKind> = new Set<AskActionKind>(["accept_later", "set_deadline", "snooze"]);
+
+function simpleAction(kind: AskActionKind): AskAction | null {
+  return kind === "accept_now" || kind === "close" ? { kind } : null;
+}
+
+const involved = (req: RequestRow, userId: string) =>
+  userId === req.tagged_by_id || userId === req.requester_id || userId === req.owner_id;
+
+// ---------- block_actions ----------
+
+async function onBlockAction(env: Env, p: BlockActionsPayload): Promise<void> {
+  const action = p.actions[0];
+  if (!action) return;
+
+  if (action.action_id === REQ_ACTIONS.confirm && action.value) return confirmRequestAction(env, p, action.value);
+  if (action.action_id === REQ_ACTIONS.edit && action.value) return openEdit(env, p, action.value);
+  if (action.action_id === ASK_MENU_ACTION_ID) {
+    const [actionId, askId] = (action.selected_option?.value ?? "").split("|");
+    const kind = actionId ? parseAskActionId(actionId) : null;
+    if (kind && askId) return askAction(env, p, kind, askId);
+    return;
+  }
+  const kind = parseAskActionId(action.action_id);
+  if (kind && action.value) return askAction(env, p, kind, action.value);
+}
+
+async function confirmRequestAction(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
+  await dispatch(env, await confirmDiscarded(env, requestId, p.user.id, "button"));
+}
+
+async function askAction(env: Env, p: BlockActionsPayload, kind: AskActionKind, askId: string): Promise<void> {
+  const via = viaOf(p);
+  if (!NEEDS_MODAL.has(kind)) {
+    const action = simpleAction(kind);
+    if (!action) return;
+    await dispatch(env, await applyAction(env, askId, action, p.user.id, via));
+    return;
+  }
+  const ask = await getAsk(env.DB, askId);
+  if (!ask) throw new TransitionError(`ask ${askId} not found`, "That ask no longer exists.");
+  if (!availableActions(ask, p.user.id).includes(kind)) {
+    throw new TransitionError(`${kind} unavailable`, "That isn't possible for this ask right now.");
+  }
+  if (!p.trigger_id) return;
+  const tz = kind === "set_deadline" ? await userTz(env, p.user.id) : "UTC";
+  const meta: ModalMeta = { askId, via };
+  await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: buildAskModal(kind, ask, meta, tz) });
+}
+
+async function openEdit(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
+  const req = await getRequest(env.DB, requestId);
+  if (!req) throw new TransitionError("request missing", "That request no longer exists.");
+  if (req.status === "confirmed") throw new TransitionError("already confirmed", "This request is already confirmed.");
+  if (!involved(req, p.user.id)) throw new TransitionError("not involved", "Only the people involved can edit this.");
+  if (p.trigger_id) await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: buildEditModal(req) });
+}
+
+// ---------- view_submission ----------
+
+async function onViewSubmission(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayload): Promise<Response> {
+  const id = p.view.callback_id;
+  try {
+    if (id === EDIT_CALLBACK_ID) return await submitEdit(env, ctx, p);
+    const kind = parseModalCallbackId(id);
+    return kind ? await submitAskModal(env, ctx, p, kind) : ok();
+  } catch (err) {
+    const field = id === EDIT_CALLBACK_ID ? "requester" : FIRST_BLOCK[parseModalCallbackId(id) ?? "accept_now"];
+    if (err instanceof TransitionError) return errorsResponse({ [field]: err.userMessage });
+    console.error("view_submission failed", err);
+    return errorsResponse({ [field]: "Something went wrong. Please try again." });
+  }
+}
+
+async function submitAskModal(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayload, kind: AskActionKind): Promise<Response> {
+  const meta = JSON.parse(p.view.private_metadata) as ModalMeta;
+  const tz = TZ_KINDS.has(kind) ? await userTz(env, p.user.id) : "UTC";
+  const parsed = parseAskSubmission(kind, p.view.state.values, { now: Date.now(), tz });
+  if (!parsed.ok) return errorsResponse(parsed.errors);
+  const effects = await applyAction(env, meta.askId, parsed.value, p.user.id, meta.via);
+  ctx.waitUntil(dispatch(env, effects));
+  return ok();
+}
+
+async function submitEdit(env: Env, ctx: ExecutionContext, p: ViewSubmissionPayload): Promise<Response> {
+  const { requestId } = JSON.parse(p.view.private_metadata) as EditMeta;
+  const req = await getRequest(env.DB, requestId);
+  if (!req) throw new TransitionError("request missing", "That request no longer exists.");
+  if (req.status === "confirmed") throw new TransitionError("already confirmed", "This request is already confirmed.");
+  if (!involved(req, p.user.id)) throw new TransitionError("not involved", "Only the people involved can edit this.");
+
+  const parsed = parseEditSubmission(p.view.state.values, req);
+  if (!parsed.ok) return errorsResponse(parsed.errors);
+  await updateRequest(env.DB, req.id, { ...parsed.value, attribution_confidence: 1, clarify_question: null });
+
+  const people = [req.requester_id, req.owner_id, parsed.value.requester_id, parsed.value.owner_id, req.tagged_by_id];
+  const effects: Effect[] = [
+    { kind: "render_request", requestId: req.id },
+    ...[...new Set(people.filter((u): u is string => !!u))].flatMap((userId): Effect[] => [
+      { kind: "refresh_home", userId },
+      { kind: "reschedule", userId },
+    ]),
+  ];
+  ctx.waitUntil(dispatch(env, effects));
+  return ok();
+}

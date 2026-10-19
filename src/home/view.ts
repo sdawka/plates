@@ -1,0 +1,312 @@
+// Pure Home tab renderer: data in, Block Kit view out. No I/O, no Workers imports.
+
+import { SIZE_LABEL, type AskRow, type AskState, type DraftAsk, type RequestRow, type Size, type Urgency } from "../types";
+import { availableActions } from "../domain/transitions";
+import { ACTION_LABEL, REQ_ACTIONS, askActionId, type AskActionKind } from "../slack/actions";
+
+export type Block = Record<string, unknown>;
+export interface View {
+  type: "home";
+  blocks: Block[];
+}
+
+export interface HomeData {
+  plate: AskRow[]; // asks the viewer holds
+  waiting: AskRow[]; // asks the viewer made, held by someone else
+  unconfirmed: RequestRow[];
+}
+
+export const MAX_BLOCKS = 100;
+const BUDGET = { response: 28, plate: 32, waiting: 18, unconfirmed: 12 } as const;
+const MAX_VISIBLE_BUTTONS = 3;
+const MAX_OVERFLOW = 5;
+const BUTTON_MAX = 75;
+const TEXT_MAX = 3000;
+const SIZE_ORDER: Size[] = ["days", "hours", "lt1h", "2-5min"];
+
+// ---------- Text helpers ----------
+
+export const clamp = (s: string, max: number): string => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const user = (id: string | null): string => (id ? `<@${id}>` : "someone");
+const mrkdwn = (text: string) => ({ type: "mrkdwn", text: clamp(text, TEXT_MAX) });
+const section = (text: string, blockId?: string): Block => ({ type: "section", ...(blockId ? { block_id: blockId } : {}), text: mrkdwn(text) });
+const context = (text: string): Block => ({ type: "context", elements: [mrkdwn(text)] });
+const header = (text: string): Block => ({ type: "header", text: { type: "plain_text", text: clamp(text, 150), emoji: true } });
+const quote = (s: string): string => `> ${esc(clamp(s, 600)).replace(/\n/g, "\n> ")}`;
+
+export function dateToken(ms: number, format = "{date_short_pretty}"): string {
+  return `<!date^${Math.floor(ms / 1000)}^${format}|${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC>`;
+}
+
+export function formatAge(ms: number): string {
+  const mins = Math.max(0, Math.floor(ms / 60_000));
+  if (mins < 60) return `${Math.max(mins, 1)}m`;
+  const hours = Math.floor(mins / 60);
+  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+}
+
+function summaryLine(plate: AskRow[]): string {
+  if (plate.length === 0) return "Nothing on your plate right now.";
+  const parts = SIZE_ORDER.flatMap((size) => {
+    const n = plate.filter((a) => a.size === size).length;
+    return n > 0 ? [`${n} × ${SIZE_LABEL[size]}`] : [];
+  });
+  return `*On your plate:* ${esc(parts.join(" · "))}`;
+}
+
+// ---------- Buttons ----------
+
+const button = (label: string, kind: AskActionKind, askId: string, style?: "primary" | "danger"): Block => ({
+  type: "button",
+  action_id: askActionId(kind),
+  text: { type: "plain_text", text: clamp(label, BUTTON_MAX), emoji: true },
+  value: askId,
+  ...(style ? { style } : {}),
+});
+
+const overflow = (kinds: AskActionKind[], askId: string): Block => ({
+  type: "overflow",
+  action_id: "ask:overflow",
+  options: kinds.map((kind) => ({
+    text: { type: "plain_text", text: clamp(ACTION_LABEL[kind], BUTTON_MAX), emoji: true },
+    value: `ask:${kind}|${askId}`,
+  })),
+});
+
+/** Preferred visible actions per state, most relevant first; the rest go to the overflow menu. */
+const PREFERRED: Partial<Record<AskState, AskActionKind[]>> = {
+  proposed: ["accept_now", "accept_later", "reject"],
+  accepted: ["accept_now", "done", "ack", "snooze"],
+  in_progress: ["done", "ack", "snooze", "set_deadline"],
+  snoozed: ["accept_now", "done", "ack", "set_deadline"],
+  delivered: ["close", "put_back"],
+  rejected: ["put_back", "redirect", "close"],
+  clarify: ["put_back", "redirect", "withdraw"],
+};
+
+const STYLE: Partial<Record<AskActionKind, "primary" | "danger">> = {
+  accept_now: "primary",
+  done: "primary",
+  ack: "primary",
+  close: "primary",
+};
+
+function orderActions(ask: AskRow, viewer: string): AskActionKind[] {
+  const available = availableActions(ask, viewer);
+  const preferred = (PREFERRED[ask.state] ?? []).filter((k) => available.includes(k));
+  return [...preferred, ...available.filter((k) => !preferred.includes(k))];
+}
+
+/** Up to 3 buttons plus an overflow menu (a lone leftover action stays a button). */
+export function actionsBlock(ask: AskRow, viewer: string, blockId: string, maxVisible = MAX_VISIBLE_BUTTONS): Block | null {
+  const kinds = orderActions(ask, viewer);
+  if (kinds.length === 0) return null;
+  const fitsAsButtons = kinds.length <= maxVisible + 1;
+  const visible = fitsAsButtons ? kinds : kinds.slice(0, maxVisible);
+  const rest = fitsAsButtons ? [] : kinds.slice(maxVisible, maxVisible + MAX_OVERFLOW);
+  const elements = visible.map((k) => button(ACTION_LABEL[k], k, ask.id, STYLE[k]));
+  if (rest.length > 0) elements.push(overflow(rest, ask.id));
+  return { type: "actions", block_id: blockId, elements };
+}
+
+// ---------- Ask cards ----------
+
+const URGENCY_TEXT: Record<Urgency, string | null> = { low: "low urgency", normal: null, high: "⬆️ high urgency", urgent: "🔥 urgent" };
+
+function metaParts(ask: AskRow): string[] {
+  const parts = [SIZE_LABEL[ask.size]];
+  const urgency = URGENCY_TEXT[ask.urgency];
+  if (urgency) parts.push(urgency);
+  if (ask.deadline_at !== null) parts.push(`due ${dateToken(ask.deadline_at)}`);
+  if (ask.deadline_change_count > 0) parts.push(`moved ×${ask.deadline_change_count}`);
+  if (ask.snooze_count > 0) parts.push(`💤×${ask.snooze_count}`);
+  if (ask.round_count > 0) parts.push(`round ${ask.round_count + 1}`);
+  return parts;
+}
+
+const sourceLink = (ask: AskRow): string | null => (ask.source_permalink ? `<${ask.source_permalink}|source message>` : null);
+
+interface Unit {
+  blocks: Block[];
+  group?: { key: string; block: Block };
+}
+
+function responseText(ask: AskRow): string {
+  const title = `*${esc(clamp(ask.title, 300))}*`;
+  const who = user(ask.owner_id);
+  switch (ask.state) {
+    case "proposed":
+      return `📥 ${title}\n${user(ask.requester_id)} asked you · ${metaParts(ask).join(" · ")}`;
+    case "delivered":
+      return `📦 ${title}\n${who} says it's done · ${metaParts(ask).join(" · ")}${ask.done_link ? `\n<${ask.done_link}|Open the result>` : ""}`;
+    case "rejected":
+      return `🚫 ${title}\n${who} turned this down · ${metaParts(ask).join(" · ")}`;
+    default:
+      return `❓ ${title}\n${who} needs more info · ${metaParts(ask).join(" · ")}`;
+  }
+}
+
+function responseUnit(ask: AskRow, viewer: string): Unit {
+  const blocks: Block[] = [section(responseText(ask), `resp:${ask.id}`)];
+  if (ask.last_note) blocks.push(context(quote(ask.last_note)));
+  const link = sourceLink(ask);
+  if (link) blocks.push(context(link));
+  const actions = actionsBlock(ask, viewer, `resp_actions:${ask.id}`);
+  if (actions) blocks.push(actions);
+  return { blocks };
+}
+
+function plateUnit(ask: AskRow, viewer: string, now: number): Unit {
+  const snoozed = ask.state === "snoozed";
+  const title = esc(clamp(ask.title, 300));
+  const lines: string[] = [snoozed ? `💤 ~${title}~` : `*${title}*`];
+  const meta = metaParts(ask).filter((p) => !(snoozed && p.startsWith("💤")));
+  if (ask.state === "in_progress") meta.unshift("🔧 in progress");
+  lines.push(meta.join(" · "));
+  if (snoozed && ask.snoozed_until !== null) {
+    const wake = ask.snoozed_until <= now ? "waking up" : `wakes ${dateToken(ask.snoozed_until, "{date_short_pretty} {time}")}`;
+    lines.push(`${wake} · 💤×${ask.snooze_count}`);
+  }
+  const link = sourceLink(ask);
+  if (link) lines.push(link);
+  const blocks: Block[] = [section(lines.join("\n"), `plate:${ask.id}`)];
+  const actions = actionsBlock(ask, viewer, `plate_actions:${ask.id}`);
+  if (actions) blocks.push(actions);
+  return {
+    blocks,
+    group: { key: ask.requester_id, block: context(`From ${user(ask.requester_id)}`) },
+  };
+}
+
+const STATE_WORDS: Record<AskState, string> = {
+  proposed: "hasn't responded yet",
+  accepted: "accepted it",
+  in_progress: "is working on it",
+  snoozed: "snoozed it",
+  delivered: "delivered it",
+  rejected: "rejected it",
+  clarify: "needs more info",
+  closed: "closed",
+  withdrawn: "withdrawn",
+};
+
+function waitingUnit(ask: AskRow, viewer: string, now: number): Unit {
+  const lines = [`*${esc(clamp(ask.title, 300))}*`];
+  const parts = [`${user(ask.holder_id)} ${STATE_WORDS[ask.state]}`, SIZE_LABEL[ask.size]];
+  if (ask.deadline_at !== null) parts.push(`due ${dateToken(ask.deadline_at)}`);
+  if (ask.deadline_change_count > 0) parts.push(`moved ×${ask.deadline_change_count}`);
+  lines.push(parts.join(" · "));
+  const extra = [`asked ${formatAge(now - ask.created_at)} ago`, `last activity ${formatAge(now - ask.updated_at)} ago`];
+  const link = sourceLink(ask);
+  if (link) extra.push(link);
+  const blocks: Block[] = [section(lines.join("\n"), `wait:${ask.id}`), context(extra.join(" · "))];
+  const actions = actionsBlock(ask, viewer, `wait_actions:${ask.id}`);
+  if (actions) blocks.push(actions);
+  return { blocks };
+}
+
+// ---------- Unconfirmed requests ----------
+
+function draftTitles(req: RequestRow): string[] {
+  try {
+    const drafts = JSON.parse(req.draft_json) as Partial<DraftAsk>[];
+    return drafts.flatMap((d) => (typeof d.title === "string" ? [d.title] : []));
+  } catch {
+    return [];
+  }
+}
+
+function unconfirmedUnit(req: RequestRow, viewer: string): Unit {
+  const titles = draftTitles(req);
+  const items = titles.length > 0 ? titles.map((t) => `• ${esc(clamp(t, 200))}`).join("\n") : "• (no items extracted)";
+  const status = req.status === "discarded" ? "⌛ Not confirmed in time" : "⏳ Waiting for confirmation";
+  const people = `${user(req.requester_id)} asking ${user(req.owner_id)}`;
+  const blocks: Block[] = [section(`${status} · ${people}\n${items}`, `unconf:${req.id}`)];
+  const elements: Block[] = [];
+  if (viewer === req.requester_id || viewer === req.owner_id) {
+    elements.push({
+      type: "button",
+      action_id: REQ_ACTIONS.confirm,
+      text: { type: "plain_text", text: "✅ Confirm", emoji: true },
+      style: "primary",
+      value: req.id,
+    });
+  }
+  elements.push({
+    type: "button",
+    action_id: REQ_ACTIONS.openThread,
+    text: { type: "plain_text", text: "Open thread", emoji: true },
+    url: `https://slack.com/app_redirect?channel=${encodeURIComponent(req.channel_id)}&message_ts=${encodeURIComponent(req.thread_ts)}`,
+  });
+  blocks.push({ type: "actions", block_id: `unconf_actions:${req.id}`, elements });
+  return { blocks };
+}
+
+// ---------- Sections and budget ----------
+
+/** Pack units into `budget` blocks, adding group headers and an "…and N more" line on truncation. */
+export function fit(units: Unit[], budget: number): Block[] {
+  const out: Block[] = [];
+  let lastGroup: string | undefined;
+  for (const [i, unit] of units.entries()) {
+    const newGroup = unit.group !== undefined && unit.group.key !== lastGroup;
+    const cost = unit.blocks.length + (newGroup ? 1 : 0);
+    const remaining = units.length - i - 1;
+    if (out.length + cost + (remaining > 0 ? 1 : 0) > budget) {
+      out.push(context(`…and ${units.length - i} more`));
+      return out;
+    }
+    if (newGroup && unit.group) out.push(unit.group.block);
+    lastGroup = unit.group?.key ?? lastGroup;
+    out.push(...unit.blocks);
+  }
+  return out;
+}
+
+function renderSection(title: string, units: Unit[], empty: string, budget: number): Block[] {
+  const body = units.length === 0 ? [context(empty)] : fit(units, budget - 1);
+  return [header(title), ...body];
+}
+
+const byAsc = (a: number | null, b: number | null) => (a ?? 0) - (b ?? 0);
+
+function plateRank(a: AskRow): number {
+  if (a.state === "in_progress") return 0;
+  if (a.state === "accepted") return a.deadline_at !== null ? 1 : 2;
+  return 3;
+}
+
+export function sortPlate(asks: AskRow[]): AskRow[] {
+  return [...asks].sort((a, b) => {
+    const rank = plateRank(a) - plateRank(b);
+    if (rank !== 0) return rank;
+    if (a.state === "snoozed") return byAsc(a.snoozed_until, b.snoozed_until) || a.created_at - b.created_at;
+    if (a.deadline_at !== null && b.deadline_at !== null) return a.deadline_at - b.deadline_at;
+    return a.created_at - b.created_at;
+  });
+}
+
+/** Stable grouping by requester, groups ordered by their most urgent ask. */
+function groupByRequester(sorted: AskRow[]): AskRow[] {
+  const groups = new Map<string, AskRow[]>();
+  for (const ask of sorted) groups.set(ask.requester_id, [...(groups.get(ask.requester_id) ?? []), ask]);
+  return [...groups.values()].flat();
+}
+
+const NEEDS_RESPONSE: AskState[] = ["proposed", "delivered", "rejected", "clarify"];
+const ON_PLATE: AskState[] = ["in_progress", "accepted", "snoozed"];
+
+export function buildHomeView(data: HomeData, viewerId: string, now: number): View {
+  const needs = data.plate.filter((a) => NEEDS_RESPONSE.includes(a.state));
+  const onPlate = groupByRequester(sortPlate(data.plate.filter((a) => ON_PLATE.includes(a.state))));
+  const blocks: Block[] = [
+    header("Your plate"),
+    section(summaryLine(data.plate)),
+    ...renderSection("Needs your response", needs.map((a) => responseUnit(a, viewerId)), "Nothing waiting on you. 🎉", BUDGET.response),
+    ...renderSection("On my plate", onPlate.map((a) => plateUnit(a, viewerId, now)), "Your plate is clear.", BUDGET.plate),
+    ...renderSection("Waiting on others", data.waiting.map((a) => waitingUnit(a, viewerId, now)), "You aren't waiting on anyone.", BUDGET.waiting),
+    ...renderSection("Unconfirmed", data.unconfirmed.map((r) => unconfirmedUnit(r, viewerId)), "No unconfirmed requests.", BUDGET.unconfirmed),
+  ];
+  return { type: "home", blocks: blocks.slice(0, MAX_BLOCKS) };
+}

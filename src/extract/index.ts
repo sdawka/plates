@@ -266,6 +266,14 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
     effects.push({ kind: "render_request", requestId: row.id });
     people.push(row.requester_id, row.owner_id);
     keepers.push(row.requester_id, row.owner_id);
+    if (dmFallback) {
+      // Only the tagger can see the confirmation in their bot DM; ask the people who can confirm directly.
+      for (const userId of new Set([row.requester_id, row.owner_id])) {
+        if (userId && userId !== job.taggerId) {
+          effects.push({ kind: "dm", userId, template: "confirm_request", requestId: row.id, ...(capturedLink && { note: capturedLink }) });
+        }
+      }
+    }
   }
 
   if (single) {

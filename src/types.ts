@@ -220,6 +220,7 @@ export type DmTemplate =
   | "deadline_changed" // requester
   | "ask_withdrawn" // owner
   | "confirm_nudge" // requester + owner: unconfirmed request reminder (requestId)
+  | "confirm_request" // requester + owner (not the tagger): a request captured from a DM the bot can't post in (requestId; note = source link)
   | "reminder" // holder: one DM listing askIds that are due (snooze_count >= 3 → deadline/redirect/reject first)
   | "bump" // owner: requester bumped askId
   | "action_undone"; // user who was notified of an action that has now been undone

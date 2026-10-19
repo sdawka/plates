@@ -239,6 +239,31 @@ function askProposedDm(c: DmContext, ask: AskRow): Rendered {
   };
 }
 
+/** The confirmation lives in the tagger's DM with the bot, which nobody else can see: bring it to the people who can confirm. */
+function confirmRequestDm(c: DmContext): Rendered {
+  const drafts = parseDrafts(c.req);
+  const items = drafts.slice(0, 10).map((d) => `☐ ${esc(d.title)} · ${sizeUrgency(d)}`).join("\n");
+  const more = drafts.length > 10 ? `\n…and ${drafts.length - 10} more` : "";
+  const other = [c.req.requester_id, c.req.owner_id].find((u) => u && u !== c.recipient);
+  const source = c.note ? ` from <${c.note}|a DM>` : " from a DM";
+  return {
+    text: `${mention(c.req.tagged_by_id)} captured an ask from a DM. It needs your confirmation.`,
+    blocks: compact([
+      section(`${mention(c.req.tagged_by_id)} captured this${source}.\n${pendingHeadline(c.req, drafts)}${items ? `:\n${items}${more}` : ""}`),
+      c.req.clarify_question ? section(`❓ ${esc(c.req.clarify_question)}`) : null,
+      context(`Only you${other ? ` or ${mention(other)}` : ""} can confirm. Not right? Edit the people or items first.`),
+      {
+        type: "actions",
+        block_id: `r:${c.req.id}`,
+        elements: [
+          { type: "button", action_id: REQ_ACTIONS.confirm, style: "primary", text: plain("✅ Confirm"), value: c.req.id },
+          { type: "button", action_id: REQ_ACTIONS.edit, text: plain("Edit"), value: c.req.id },
+        ],
+      },
+    ]),
+  };
+}
+
 function nudgeDm(c: DmContext): Rendered {
   const n = plural(parseDrafts(c.req).length, "ask", "asks");
   const who = c.req.requester_id && c.req.owner_id ? `${mention(c.req.requester_id)} → ${mention(c.req.owner_id)}` : "a request";
@@ -330,6 +355,7 @@ function undoneDm(c: DmContext, ask: AskRow): Rendered {
 export function renderDm(template: DmTemplate, c: DmContext): Rendered | null {
   if (template === "request_proposed") return requestProposedDm(c);
   if (template === "confirm_nudge") return nudgeDm(c);
+  if (template === "confirm_request") return confirmRequestDm(c);
   if (template === "reminder") return reminderDm(c);
   const ask = c.ask;
   if (!ask) return null;

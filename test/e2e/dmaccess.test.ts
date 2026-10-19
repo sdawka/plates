@@ -165,6 +165,49 @@ describe("message shortcut from a DM the bot is not in", () => {
     expect(h.errors).toEqual([]);
   });
 
+  it("tells the person who can confirm by DM, since only the tagger sees the bot-DM confirmation", async () => {
+    await connect(USERS.dana); // so the whole DM, and with it Bob, is visible
+    await shortcut(); // Dana (requester) captures her own ask to Bob
+    h.anthropic.queueToolUse("record_asks", extractionInput({ requester: USERS.dana, owner: USERS.bob, asks: [{ title: "Send the Q3 numbers", source_ts: h.slack.channel(DM).messages.at(-1)!.ts }] }));
+    await h.drain();
+    const [req] = h.requests();
+    const toBob = h.slack.im(USERS.bob).messages;
+    expect(toBob).toHaveLength(1);
+    expect(flatText(toBob[0]!)).toContain("Send the Q3 numbers");
+    expect(interactiveElements(toBob[0]!.blocks).map((e) => e.element.action_id)).toEqual(["req:confirm", "req:edit"]);
+    // Dana tagged it herself, so she only has the confirmation in her own bot DM.
+    expect(botDm().messages.filter((m) => m.text.includes("needs your confirmation"))).toEqual([]);
+
+    await h.click(USERS.bob, { channel: h.slack.im(USERS.bob).id, ts: toBob[0]!.ts }, "req:confirm", req!.id as string);
+    expect(h.requests()[0]!.status).toBe("confirmed");
+    expect(h.errors).toEqual([]);
+  });
+
+  it("group DM captured by a third party: requester and owner each get the confirm DM, the tagger doesn't", async () => {
+    const G = "G777";
+    h.slack.addGroupDm(G, [USERS.dana, USERS.bob, USERS.tara]);
+    const ask = h.slack.addHumanMessage({ channel: G, user: USERS.dana, text: `<@${USERS.bob}> can you review the deck?` });
+    await h.ingress.interaction(h.ingress.messageAction({ user: USERS.tara, callbackId: "plates_capture", channel: G, ts: ask.ts }));
+    h.anthropic.queueToolUse("record_asks", extractionInput({ requester: USERS.dana, owner: USERS.bob, asks: [{ title: "Review the deck", source_ts: ask.ts }] }));
+    await h.drain();
+
+    const [req] = h.requests();
+    expect(req).toMatchObject({ channel_id: h.slack.im(USERS.tara).id, tagged_by_id: USERS.tara, status: "pending_confirmation" });
+    for (const user of [USERS.dana, USERS.bob]) {
+      const dms = h.slack.im(user).messages;
+      expect(dms, user).toHaveLength(1);
+      expect(flatText(dms[0]!)).toContain(`<@${USERS.tara}> captured this from a DM`);
+      expect(flatText(dms[0]!)).toContain("Review the deck");
+    }
+    expect(flatText(h.slack.im(USERS.dana).messages[0]!)).toContain(`Only you or <@${USERS.bob}> can confirm`);
+    expect(h.slack.im(USERS.tara).messages.some((m) => m.text.includes("needs your confirmation"))).toBe(false);
+
+    const danaDm = h.slack.im(USERS.dana);
+    await h.click(USERS.dana, { channel: danaDm.id, ts: danaDm.messages[0]!.ts }, "req:confirm", req!.id as string);
+    expect(h.requests()[0]!.status).toBe("confirmed");
+    expect(h.errors).toEqual([]);
+  });
+
   it("a revoked user token degrades to the single message instead of failing the job", async () => {
     const token = await connect(USERS.dana);
     h.slack.tokens.delete(token); // revoked at Slack behind our back

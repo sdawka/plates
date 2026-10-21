@@ -100,6 +100,15 @@ describe("buildHomeView", () => {
     expect(text(asOwner)).toContain("Draft item");
   });
 
+  it("shows Dismiss to requester, owner and tagger, not to others", () => {
+    const unconfirmed = [request({ id: "q1" })];
+    for (const viewer of ["UME", "UTAG"]) {
+      expect(buttonIds(find(buildHomeView({ ...empty, unconfirmed }, viewer, NOW).blocks, "unconf_actions:")[0])).toContain("req:dismiss");
+    }
+    const asOther = buildHomeView({ ...empty, unconfirmed }, "UOTHER", NOW).blocks;
+    expect(buttonIds(find(asOther, "unconf_actions:")[0])).not.toContain("req:dismiss");
+  });
+
   it("stays within 100 blocks and reports truncation", () => {
     const many = (n: number, over: Partial<AskRow>) => Array.from({ length: n }, (_, i) => ask({ ...over, id: `${over.state}${i}` }));
     const data: HomeData = {

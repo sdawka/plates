@@ -16,6 +16,7 @@ export const parseAskActionId = (actionId: string): AskActionKind | null =>
 export const REQ_ACTIONS = {
   confirm: "req:confirm", // value = requestId (Home "Unconfirmed" section, confirmation message button)
   edit: "req:edit", // opens a modal to fix people / items
+  dismiss: "req:dismiss", // value = requestId; drops a pending or discarded request
   openThread: "req:open_thread", // link button, no handler needed
 } as const;
 

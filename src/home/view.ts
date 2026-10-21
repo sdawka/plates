@@ -259,6 +259,20 @@ function unconfirmedUnit(req: RequestRow, viewer: string): Unit {
       value: req.id,
     });
   }
+  if (viewer === req.requester_id || viewer === req.owner_id || viewer === req.tagged_by_id) {
+    elements.push({
+      type: "button",
+      action_id: REQ_ACTIONS.dismiss,
+      text: { type: "plain_text", text: "Dismiss", emoji: true },
+      value: req.id,
+      confirm: {
+        title: { type: "plain_text", text: "Dismiss this request?" },
+        text: { type: "plain_text", text: "It leaves everyone's Home and nothing goes on a plate." },
+        confirm: { type: "plain_text", text: "Dismiss" },
+        deny: { type: "plain_text", text: "Keep" },
+      },
+    });
+  }
   elements.push({
     type: "button",
     action_id: REQ_ACTIONS.openThread,

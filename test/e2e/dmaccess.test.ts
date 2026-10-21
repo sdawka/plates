@@ -174,7 +174,7 @@ describe("message shortcut from a DM the bot is not in", () => {
     const toBob = h.slack.im(USERS.bob).messages;
     expect(toBob).toHaveLength(1);
     expect(flatText(toBob[0]!)).toContain("Send the Q3 numbers");
-    expect(interactiveElements(toBob[0]!.blocks).map((e) => e.element.action_id)).toEqual(["req:confirm", "req:edit"]);
+    expect(interactiveElements(toBob[0]!.blocks).map((e) => e.element.action_id)).toEqual(["req:confirm", "req:edit", "req:dismiss"]);
     // Dana tagged it herself, so she only has the confirmation in her own bot DM.
     expect(botDm().messages.filter((m) => m.text.includes("needs your confirmation"))).toEqual([]);
 

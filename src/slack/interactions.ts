@@ -3,7 +3,7 @@
 // state change inline so TransitionErrors and validation problems can be shown inside the modal.
 
 import { dispatch } from "../effects";
-import { applyAction, bumpAsk, confirmDiscarded } from "../domain/service";
+import { applyAction, bumpAsk, confirmDiscarded, dismissRequest } from "../domain/service";
 import { getAsk, getPrefs, getRequest, updateRequestIfPending, upsertPrefs } from "../domain/repo";
 import { onProposalNo, onProposalPick, onProposalYes, onUndoClick, type ClickTarget } from "../intent/interact";
 import { availableActions } from "../domain/transitions";
@@ -140,6 +140,7 @@ async function onBlockAction(env: Env, p: BlockActionsPayload): Promise<void> {
   if (!action) return;
 
   if (action.action_id === REQ_ACTIONS.confirm && action.value) return confirmRequestAction(env, p, action.value);
+  if (action.action_id === REQ_ACTIONS.dismiss && action.value) return dismissRequestAction(env, p, action.value);
   if (action.action_id === REQ_ACTIONS.edit && action.value) return openEdit(env, p, action.value);
   if (action.action_id === UNDO_ACTION_ID && action.value) return withClick(p, (c) => onUndoClick(env, c, action.value!));
   if (action.action_id === PROPOSAL_ACTIONS.yes && action.value) return withClick(p, (c) => onProposalYes(env, c, action.value!));
@@ -189,6 +190,13 @@ async function confirmRequestAction(env: Env, p: BlockActionsPayload, requestId:
   await dispatch(env, effects);
 }
 
+async function dismissRequestAction(env: Env, p: BlockActionsPayload, requestId: string): Promise<void> {
+  const effects = await dismissRequest(env, requestId, p.user.id, viaOf(p));
+  const dm = clickedDm(p);
+  if (dm) effects.push({ kind: "settle_dm", channelId: dm.channel, ts: dm.ts, blockId: `r:${requestId}`, label: "🗑️ You dismissed this." });
+  await dispatch(env, effects);
+}
+
 /** The DM a button sat on. Thread cards re-render themselves; DMs have to be settled. */
 function clickedDm(p: BlockActionsPayload): { channel: string; ts: string } | undefined {
   if (p.view?.type === "home") return undefined;
@@ -230,6 +238,7 @@ async function openEdit(env: Env, p: BlockActionsPayload, requestId: string): Pr
   const req = await getRequest(env.DB, requestId);
   if (!req) throw new TransitionError("request missing", "That request no longer exists.");
   if (req.status === "confirmed") throw new TransitionError("already confirmed", "This request is already confirmed.");
+  if (req.status === "dismissed") throw new TransitionError("dismissed", "This request was dismissed.");
   if (!involved(req, p.user.id)) throw new TransitionError("not involved", "Only the people involved can edit this.");
   if (p.trigger_id) await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: buildEditModal(req) });
 }

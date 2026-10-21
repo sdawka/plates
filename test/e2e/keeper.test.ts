@@ -118,6 +118,41 @@ describe("unconfirmed requests: nudge, discard, Home, confirm", () => {
     expect(h.errors).toEqual([]);
   });
 
+  it("Dismiss from Home drops a discarded request for everyone and settles the thread card", async () => {
+    h = createHarness();
+    const t = await tagThread(h);
+    await h.fireAlarms(Date.UTC(2026, 9, 21, 9, 0));
+    await h.fireAlarms(Date.UTC(2026, 9, 22, 9, 0));
+    expect(h.requests()[0]!.status).toBe("discarded");
+
+    const res = await h.clickHome(USERS.tara, "req:dismiss", t.requestId);
+    expect(res.status).toBe(200);
+    expect(h.requests()[0]!.status).toBe("dismissed");
+    expect(h.asks()).toHaveLength(0);
+    const card = text(h.slack.message(CHANNEL, t.card.ts));
+    expect(card).toContain("Dismissed");
+    expect(JSON.stringify(h.slack.message(CHANNEL, t.card.ts).blocks)).not.toContain("req:");
+    for (const u of [USERS.dana, USERS.bob, USERS.tara]) {
+      await h.openHome(u);
+      expect(flatText(h.slack.homeViews.get(u)!), u).toContain("No unconfirmed requests");
+    }
+    // A late ✅ on the card does nothing.
+    await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "white_check_mark");
+    await h.drain();
+    expect(h.requests()[0]!.status).toBe("dismissed");
+    expect(h.errors).toEqual([]);
+  });
+
+  it("Dismiss on a pending thread card works before any nudge", async () => {
+    h = createHarness();
+    const t = await tagThread(h);
+    const res = await h.click(USERS.bob, { channel: CHANNEL, ts: t.card.ts }, "req:dismiss", t.requestId);
+    expect(res.status).toBe(200);
+    expect(h.requests()[0]!.status).toBe("dismissed");
+    expect(text(h.slack.message(CHANNEL, t.card.ts))).toContain("Dismissed");
+    expect(h.errors).toEqual([]);
+  });
+
   it("a request confirmed before the nudge is never nudged", async () => {
     h = createHarness();
     await tagAndConfirm(h);

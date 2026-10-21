@@ -4,6 +4,7 @@ import {
   confirmDiscarded,
   confirmRequest,
   discardRequest,
+  dismissRequest,
 } from "../src/domain/service";
 import {
   getAsk,
@@ -461,5 +462,42 @@ describe("applyAction", () => {
       const rej = res.find((r) => r.status === "rejected") as PromiseRejectedResult;
       expect(rej.reason).toBeInstanceOf(TransitionError);
     });
+  });
+});
+
+describe("dismissRequest", () => {
+  beforeEach(async () => {
+    await insertRequest(db(), mkRequest());
+  });
+
+  it("requester, owner or tagger dismisses a pending request; it fans out and logs an event", async () => {
+    const eff = await dismissRequest(env, "r1", TAG, "home");
+    expect((await getRequest(db(), "r1"))?.status).toBe("dismissed");
+    expect(eff[0]).toEqual({ kind: "render_request", requestId: "r1" });
+    expect(homeUsers(eff)).toEqual([OWN, REQ, TAG].sort());
+    expect(await getAsksByRequest(db(), "r1")).toHaveLength(0);
+    expect(fake.all("SELECT * FROM ask_events WHERE request_id = 'r1'")[0]).toMatchObject({ kind: "dismiss", actor_id: TAG, via: "home" });
+  });
+  it("dismisses a discarded request", async () => {
+    await discardRequest(env, "r1");
+    await dismissRequest(env, "r1", OWN, "home");
+    expect((await getRequest(db(), "r1"))?.status).toBe("dismissed");
+  });
+  it("a stranger cannot dismiss", async () => {
+    await expectDenied(dismissRequest(env, "r1", STR, "home"), /people involved/);
+    expect((await getRequest(db(), "r1"))?.status).toBe("pending_confirmation");
+  });
+  it("confirmed, dismissed and missing requests are denied", async () => {
+    await insertRequest(db(), mkRequest({ id: "r2" }));
+    await confirmRequest(env, "r2", REQ, "button");
+    await expectDenied(dismissRequest(env, "r2", REQ, "home"), /already confirmed/);
+    await dismissRequest(env, "r1", REQ, "home");
+    await expectDenied(dismissRequest(env, "r1", REQ, "home"), /already dismissed/);
+    await expectDenied(dismissRequest(env, "nope", REQ, "home"), /no longer exists/);
+  });
+  it("a dismissed request can't be confirmed", async () => {
+    await dismissRequest(env, "r1", REQ, "home");
+    await expectDenied(confirmDiscarded(env, "r1", REQ, "home"), /dismissed/);
+    expect(await getAsksByRequest(db(), "r1")).toHaveLength(0);
   });
 });

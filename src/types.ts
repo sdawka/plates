@@ -55,7 +55,7 @@ export const ASK_STATES: readonly AskState[] = [...OWNER_PLATE_STATES, ...REQUES
 export type AskType = "deliverable" | "acknowledge" | "decision" | "info";
 export type Size = "2-5min" | "lt1h" | "hours" | "days";
 export type Urgency = "low" | "normal" | "high" | "urgent";
-export type RequestStatus = "pending_confirmation" | "confirmed" | "discarded";
+export type RequestStatus = "pending_confirmation" | "confirmed" | "discarded" | "dismissed";
 export type Via = "button" | "home" | "thread_reply" | "reaction" | "dm" | "command" | "system";
 
 export const SIZE_LABEL: Record<Size, string> = {

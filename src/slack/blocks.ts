@@ -58,6 +58,12 @@ function pendingRequest(req: RequestRow): Rendered {
   const discarded = req.status === "discarded";
   const headline = pendingHeadline(req, drafts);
   const items = drafts.map((d) => `☐ ${esc(d.title)} · ${sizeUrgency(d)}`).join("\n");
+  if (req.status === "dismissed") {
+    return {
+      text: headline.replace(/[*]/g, ""),
+      blocks: [section(`${headline}${items ? `:\n${items}` : ""}`), context("🗑️ Dismissed. Nothing was added to anyone's plate.")],
+    };
+  }
   const who = req.requester_id && req.owner_id ? `${mention(req.requester_id)} or ${mention(req.owner_id)}` : null;
   const footer = discarded
     ? `This request was not confirmed${who ? `. A ✅ from ${who} still confirms it` : ""}. React ✅ to confirm or just reply to change it.`
@@ -68,7 +74,14 @@ function pendingRequest(req: RequestRow): Rendered {
       section(`${headline}${items ? `:\n${items}` : ""}`),
       req.clarify_question ? section(`❓ ${esc(req.clarify_question)}`) : null,
       context(footer),
-      { type: "actions", block_id: `r:${req.id}`, elements: [{ type: "button", action_id: REQ_ACTIONS.edit, text: plain("Edit"), value: req.id }] },
+      {
+        type: "actions",
+        block_id: `r:${req.id}`,
+        elements: [
+          { type: "button", action_id: REQ_ACTIONS.edit, text: plain("Edit"), value: req.id },
+          { type: "button", action_id: REQ_ACTIONS.dismiss, text: plain("Dismiss"), value: req.id },
+        ],
+      },
     ]),
   };
 }
@@ -271,6 +284,7 @@ function confirmRequestDm(c: DmContext): Rendered {
         elements: [
           { type: "button", action_id: REQ_ACTIONS.confirm, style: "primary", text: plain("✅ Confirm"), value: c.req.id },
           { type: "button", action_id: REQ_ACTIONS.edit, text: plain("Edit"), value: c.req.id },
+          { type: "button", action_id: REQ_ACTIONS.dismiss, text: plain("Dismiss"), value: c.req.id },
         ],
       },
     ]),
@@ -284,7 +298,10 @@ function nudgeDm(c: DmContext): Rendered {
     text: "A request is waiting for your confirmation",
     blocks: [
       section(`⏰ Still waiting on a ✅: ${who} · ${n}${threadLink(c.permalink)}\nIf nobody confirms by tomorrow it will be marked unconfirmed.`),
-      { type: "actions", block_id: `r:${c.req.id}`, elements: [{ type: "button", action_id: REQ_ACTIONS.confirm, style: "primary", text: plain("✅ Confirm"), value: c.req.id }] },
+      { type: "actions", block_id: `r:${c.req.id}`, elements: [
+        { type: "button", action_id: REQ_ACTIONS.confirm, style: "primary", text: plain("✅ Confirm"), value: c.req.id },
+        { type: "button", action_id: REQ_ACTIONS.dismiss, text: plain("Dismiss"), value: c.req.id },
+      ] },
     ],
   };
 }

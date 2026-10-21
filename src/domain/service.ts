@@ -203,6 +203,7 @@ export async function confirmRequest(env: Env, requestId: string, userId: string
   const req = await getRequest(env.DB, requestId);
   if (!req) throw new TransitionError(`request ${requestId} not found`, "That request no longer exists.");
   if (req.status === "confirmed") throw new TransitionError("already confirmed", "This is already confirmed.");
+  if (req.status === "dismissed") throw new TransitionError("dismissed", "This request was dismissed.");
   assertCanConfirm(req, userId);
 
   const now = Date.now();
@@ -282,6 +283,31 @@ export async function confirmDiscarded(env: Env, requestId: string, userId: stri
     await updateRequest(env.DB, req.id, { status: "pending_confirmation" });
   }
   return confirmRequest(env, requestId, userId, via);
+}
+
+/** Anyone involved drops a request nobody confirmed (pending or discarded). Final: it leaves every Home. */
+export async function dismissRequest(env: Env, requestId: string, userId: string, via: Via): Promise<Effect[]> {
+  const req = await getRequest(env.DB, requestId);
+  if (!req) throw new TransitionError(`request ${requestId} not found`, "That request no longer exists.");
+  if (req.status === "confirmed") throw new TransitionError("already confirmed", "This is already confirmed. Withdraw or reject its asks instead.");
+  if (req.status === "dismissed") throw new TransitionError("already dismissed", "This was already dismissed.");
+  if (userId !== req.tagged_by_id && userId !== req.requester_id && userId !== req.owner_id) {
+    throw new TransitionError(`${userId} cannot dismiss`, "Only the people involved can dismiss this.");
+  }
+
+  const now = Date.now();
+  const [claim] = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE requests SET status = 'dismissed', updated_at = ? WHERE id = ? AND status IN ('pending_confirmation', 'discarded')",
+    ).bind(now, req.id),
+    insertEventIfChangedStmt(env.DB, {
+      id: newId(), ask_id: null, request_id: req.id, actor_id: userId, kind: "dismiss",
+      from_state: null, to_state: null, note: null, via, source_ts: null, at: now, prev_json: null,
+    }),
+  ]);
+  if (claim?.meta.changes !== 1) throw new TransitionError("already handled", "This was already confirmed or dismissed.");
+
+  return [{ kind: "render_request", requestId: req.id }, ...fanOut([req.requester_id, req.owner_id, req.tagged_by_id])];
 }
 
 function assertCanConfirm(

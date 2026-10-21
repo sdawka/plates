@@ -177,7 +177,7 @@ const isIn = (list: readonly string[], r: string) => list.includes(r);
 async function onReaction(env: Env, e: ReactionAdded): Promise<void> {
   if (e.item.type !== "message" || !e.item.channel || !e.item.ts) return;
   const req = await getRequestByMessage(env.DB, e.item.channel, e.item.ts);
-  if (!req || req.status === "confirmed" || !involved(req, e.user)) return;
+  if (!req || req.status === "confirmed" || req.status === "dismissed" || !involved(req, e.user)) return;
 
   const name = reactionName(e.reaction);
   if (isIn(CONFIRM_REACTIONS.yes, name)) return confirmFromReaction(env, req, e.user);

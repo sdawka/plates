@@ -97,8 +97,6 @@ npm test            # unit + end-to-end tests against docs-shaped fakes (Slack, 
 npm run local:e2e   # the real Worker in `wrangler dev --local` (D1, Queues, DO alarms) against mock servers
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the typecheck and tests on every push and pull request.
-
 `ONLY=a,c npm run local:e2e` runs a subset; `npm run local:mock` starts just the mock servers. `.dev.vars.example` lists every variable for running `wrangler dev` by hand.
 
 ## Trying it in Slack

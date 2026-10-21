@@ -26,7 +26,7 @@ npm install
 npx wrangler d1 create plates
 ```
 
-> **Required:** copy the `database_id` printed by `d1 create` into `d1_databases[0].database_id` in `wrangler.jsonc`, replacing `REPLACE_WITH_D1_ID`. Migrations and deploy fail until you do.
+> `wrangler.jsonc` and `logs/wrangler.jsonc` already hold the ids of the deployed `plates` and `plates-logs` databases. For a fresh install in another account, put the `database_id` printed by `d1 create` into `d1_databases[0].database_id` in `wrangler.jsonc` (and into the `APP` binding in `logs/wrangler.jsonc`). Migrations and deploy fail until the ids match your account.
 
 ```sh
 npx wrangler queues create plates-extract
@@ -97,6 +97,8 @@ npm test            # unit + end-to-end tests against docs-shaped fakes (Slack, 
 npm run local:e2e   # the real Worker in `wrangler dev --local` (D1, Queues, DO alarms) against mock servers
 ```
 
+GitHub Actions (`.github/workflows/ci.yml`) runs the typecheck and tests on every push and pull request.
+
 `ONLY=a,c npm run local:e2e` runs a subset; `npm run local:mock` starts just the mock servers. `.dev.vars.example` lists every variable for running `wrangler dev` by hand.
 
 ## Trying it in Slack
@@ -112,7 +114,7 @@ Use two or three people (call them Dana, Bob, Tara). Everything below should als
 7. **Done and close**: Bob marks done with a link → item lands on Dana's plate as delivered; Dana puts it back, Bob re-delivers, Dana closes.
 8. **Reject / send back**: Bob rejects with a reason → on Dana's plate; Dana puts it back.
 9. **Other ways in**: `/plates @Bob send the deck by Friday`; the message shortcut **Put on someone's plate** on any message; a DM to the bot.
-10. **Unconfirmed**: leave a confirmation unanswered → nudge next working day, then shown as "unconfirmed" on Home.
+10. **Unconfirmed**: leave a confirmation unanswered → nudge next working day, then shown as "unconfirmed" on Home. **Dismiss** (on Home, the thread card or the nudge DM) drops it for everyone; requester, owner or tagger can dismiss.
 11. **Reminders**: `/plates settings` → set your timezone and reminder cap; the daily digest arrives at your work start.
 12. **Ask Plates**: open Plates from the sidebar (or Slack's top bar, since it's an agent). The first time you open it, it introduces itself. Try the starter prompts: "What's on my plate?", "What am I waiting on?", "How does Plates work?". `@plates help` in a channel and `/plates help` show the help privately, and **❓ How it works** on Home opens it too. Inviting Plates to a channel posts a one-line hello.
 13. **Optional**: Connect DMs from Home (needs the OAuth secrets), then tag @plates in a DM it isn't in. With `TRACKER` set, accepted deliverables appear in Jira/Linear.

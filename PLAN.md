@@ -2,6 +2,8 @@
 
 A Slack agent you tag when you ask someone for something. It reads the conversation, works out each ask, and puts it on the right person's plate. It tracks each ask as it moves between people until it's done. Snoozed asks stay visible.
 
+**Status (2026-10-21):** Phases 1–3 are built and deployed. Changes since then are in the decisions log.
+
 ---
 
 ## 1. Problems → design responses
@@ -61,7 +63,7 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
    - **Replying in plain language** works as well, e.g. "yes", "no, it's from me", "drop the intro", "it's Carol not Bob". It re-extracts and updates the same message, so a new ✅ is needed.
    - Reactions from anyone else, including the tagger, are ignored. If the tagger reacts ✅, the bot replies: "Needs a ✅ from @dana or @bob."
    - The owner's ✅ only confirms who's who. The owner still accepts or rejects separately in the next step.
-   - **No reaction by the next working day**: the bot reminds the requester and owner once. If it's still unconfirmed after that, the request is marked *discarded*. It stays visible as "unconfirmed" on the requester's, owner's and tagger's Home tabs, where either the requester or the owner can still confirm it.
+   - **No reaction by the next working day**: the bot reminds the requester and owner once. If it's still unconfirmed after that, the request is marked *discarded*. It stays visible as "unconfirmed" on the requester's, owner's and tagger's Home tabs, where either the requester or the owner can still confirm it. Anyone of the three can **Dismiss** a pending or discarded request instead; that is final, it leaves every Home and the thread card says so.
 
    When it can't tell who the requester or owner is, it asks a specific question in the confirmation instead of guessing ("Who's asking: @dana or @sahil?").
 6. After confirmation, the **same message is updated in place** for the rest of the request's life:
@@ -154,7 +156,7 @@ How it decides:
 
 ```
 Request   id, channel_id, thread_ts, message_ts (confirmation → live message),
-          status (pending_confirmation|confirmed|discarded),
+          status (pending_confirmation|confirmed|discarded|dismissed),
           tagged_by_id, requester_id, owner_id,
           attribution_confidence, attribution_reason,
           confirmed_by, confirmed_via (reaction|reply|button), created_at
@@ -214,7 +216,7 @@ Slack ──events/interactions/commands──▶ Worker (slack-cloudflare-worke
 
 ---
 
-## 7. Build order (by dependency)
+## 7. Build order (by dependency, all shipped)
 
 **Phase 1: the loop works end to end**
 - Slack app, Worker, D1, the `transition()` state machine and the event log.
@@ -258,6 +260,7 @@ Slack ──events/interactions/commands──▶ Worker (slack-cloudflare-worke
 - **2026-10-18**: Only the inferred requester or the inferred owner can confirm a request. The tagger can't, unless they are one of the two.
 - **2026-10-18**: Unconfirmed requests get one reminder the next working day and are then discarded. They stay visible as "unconfirmed" on Home.
 - **2026-10-18**: The daily reminder cap defaults to 5 and is adjustable per person.
+- **2026-10-21**: Unconfirmed requests can be dismissed by the requester, owner or tagger (Home, thread card, confirmation and nudge DMs). Dismissed is final: no asks are created and it leaves everyone's Home.
 
 ## 9. Open questions
-None right now. The plan is ready for Phase 1.
+None right now.

@@ -37,7 +37,8 @@ describe("reminder DM", () => {
     expect(text).toContain("due <!date^");
     expect(text).toContain("💤×1");
     expect(buttonIds(r.blocks)[0]).toEqual(["ask:accept_now", "ask:done", "ask:set_deadline", "ask:snooze"]);
-    expect(buttonIds(r.blocks)[1]).toEqual(["ask:accept_now", "ask:accept_later", "ask:done", "ask:snooze", "ask:reject"]);
+    // A proposed ask keeps accept / reject as buttons; Done and Snooze sit in the overflow menu.
+    expect(buttonIds(r.blocks)[1]).toEqual(["ask:accept_now", "ask:accept_later", "ask:reject", "ask:overflow"]);
   });
 
   it("after the third snooze puts Set deadline, Redirect, Reject before Snooze anyway", () => {
@@ -46,7 +47,7 @@ describe("reminder DM", () => {
     expect(kinds).toEqual(["set_deadline", "redirect", "reject", "snooze"]);
     expect(l.snooze).toBe("Snooze anyway");
     const r = renderDm("reminder", ctx({ reminderAsks: [a] }))!;
-    expect(labels(r.blocks)[0]).toEqual(["Set deadline", "Redirect", "Reject", "Snooze anyway"]);
+    expect(labels(r.blocks)[0]).toEqual(["Set deadline", "Hand off", "Reject", "Snooze anyway"]);
     expect(json(r.blocks)).toContain("Snoozed 3 times");
   });
 

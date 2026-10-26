@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { USERS, createHarness, type Harness } from "../helpers/env";
+import { CHANNEL, USERS, createHarness, type Harness } from "../helpers/env";
 
 let h: Harness;
 beforeEach(() => void (h = createHarness()));
@@ -19,9 +19,12 @@ describe("extraction that keeps failing", () => {
     expect(last.acked).toHaveLength(1);
     expect(last.deadLettered).toHaveLength(0);
 
-    const texts = h.slack.posts({ thread_ts: root.ts }).map((p) => String(p.args.text));
-    expect(texts[0]).toBe("Reading the thread…");
-    expect(texts.at(-1)).toContain("something went wrong");
+    // The placeholder is edited into the failure note: one bot message in the thread, not two.
+    const posts = h.slack.posts({ thread_ts: root.ts }).map((p) => String(p.args.text));
+    expect(posts).toEqual(["👀 Reading the thread…"]);
+    const inThread = h.slack.botMessages(CHANNEL).filter((m) => m.thread_ts === root.ts).map((m) => m.text);
+    expect(inThread).toHaveLength(1);
+    expect(inThread[0]).toContain("something went wrong");
     expect(h.requests()).toHaveLength(0);
   });
 });

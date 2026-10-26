@@ -57,7 +57,7 @@ export const ACTION_DONE_LABEL: Record<AskActionKind, string> = {
   set_deadline: "📅 Deadline updated",
   snooze: "💤 Snoozed",
   set_estimate: "✏️ Size/urgency updated",
-  redirect: "➡️ Handed over",
+  redirect: "➡️ Handed off",
   close: "✅ Closed",
   put_back: "↩️ Put back",
   withdraw: "🗑️ Withdrawn",
@@ -66,16 +66,16 @@ export const ACTION_DONE_LABEL: Record<AskActionKind, string> = {
 
 /** Button labels, phrased for the person who sees them. */
 export const ACTION_LABEL: Record<AskActionKind, string> = {
-  accept_now: "Accept · now",
-  accept_later: "Accept · later",
+  accept_now: "Start now",
+  accept_later: "Accept for later",
   done: "Done",
-  ack: "Ack + next step",
+  ack: "Acknowledge",
   reject: "Reject",
   send_back: "Need more info",
   set_deadline: "Set deadline",
   snooze: "Snooze",
   set_estimate: "Change size/urgency",
-  redirect: "Redirect",
+  redirect: "Hand off",
   close: "Close",
   put_back: "Put back",
   withdraw: "Withdraw",
@@ -105,4 +105,6 @@ export const PROPOSAL_ACTIONS = {
 } as const;
 export const SETTINGS_OPEN_ACTION_ID = "settings:open";
 export const HELP_OPEN_ACTION_ID = "help:open";
+/** Home tab "Refresh" button: republishes the viewer's Home. */
+export const HOME_REFRESH_ACTION_ID = "home:refresh";
 export const SETTINGS_CALLBACK_ID = "settings:save";

@@ -3,8 +3,11 @@
 
 import { availableActions } from "../domain/transitions";
 import { OWNER_PLATE_STATES, type AskRow, type DmTemplate, type DraftAsk, type RequestRow } from "../types";
-import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, askActionId, type AskActionKind } from "./actions";
+import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, type AskActionKind } from "./actions";
+import { ASK_MENU_ACTION_ID, fitActions, orderActions } from "./buttons";
 import { dateToken, esc, isHttpUrl, link, mention, plural, sizeUrgency, truncate } from "./format";
+
+export { ASK_MENU_ACTION_ID } from "./buttons";
 
 export type Block = Record<string, unknown>;
 export interface Rendered {
@@ -12,23 +15,14 @@ export interface Rendered {
   blocks: Block[];
 }
 
-/** action_id of the per-ask menu in the thread message. value = `<kind>|<askId>`. */
-export const ASK_MENU_ACTION_ID = "ask:overflow";
-
 const mrkdwn = (text: string) => ({ type: "mrkdwn", text });
 const plain = (text: string) => ({ type: "plain_text", text, emoji: true });
 const section = (text: string, extra: Block = {}): Block => ({ type: "section", text: mrkdwn(truncate(text, 2900)), ...extra });
 const context = (text: string): Block => ({ type: "context", elements: [mrkdwn(truncate(text, 2900))] });
 
-function button(kind: AskActionKind, askId: string, label = ACTION_LABEL[kind]): Block {
-  const style = kind === "accept_now" || kind === "close" ? { style: "primary" } : {};
-  return { type: "button", action_id: askActionId(kind), text: plain(label), value: askId, ...style };
-}
-
+/** `kinds` as buttons (three, then an overflow menu) in the DM's `a:<askId>` block. */
 const askActions = (ask: AskRow, kinds: AskActionKind[], labels: Partial<Record<AskActionKind, string>> = {}): Block | null =>
-  kinds.length === 0
-    ? null
-    : { type: "actions", block_id: `a:${ask.id}`, elements: kinds.map((k) => button(k, ask.id, labels[k])) };
+  fitActions(kinds, ask.id, `a:${ask.id}`, labels);
 
 const compact = (blocks: (Block | null)[]): Block[] => blocks.filter((b): b is Block => b !== null);
 
@@ -64,10 +58,13 @@ function pendingRequest(req: RequestRow): Rendered {
       blocks: [section(`${headline}${items ? `:\n${items}` : ""}`), context("🗑️ Dismissed. Nothing was added to anyone's plate.")],
     };
   }
-  const who = req.requester_id && req.owner_id ? `${mention(req.requester_id)} or ${mention(req.owner_id)}` : null;
+  const who = req.requester_id && req.owner_id
+    ? req.requester_id === req.owner_id ? mention(req.owner_id) : `${mention(req.requester_id)} or ${mention(req.owner_id)}`
+    : null;
+  const canConfirm = who ? `Only ${who} can confirm.` : "Pick the people with *Edit* first; then they can confirm.";
   const footer = discarded
-    ? `This request was not confirmed${who ? `. A ✅ from ${who} still confirms it` : ""}. React ✅ to confirm or just reply to change it.`
-    : "React ✅ to confirm or ❌ to change — or just reply.";
+    ? `⌛ Nobody confirmed this in time. ${canConfirm} Not right? Reply here or use *Edit*.`
+    : `${canConfirm} Something off? Just reply here (“it's Carol, not Bob”) or use *Edit*.`;
   return {
     text: headline.replace(/[*]/g, ""),
     blocks: compact([
@@ -78,6 +75,7 @@ function pendingRequest(req: RequestRow): Rendered {
         type: "actions",
         block_id: `r:${req.id}`,
         elements: [
+          { type: "button", action_id: REQ_ACTIONS.confirm, style: "primary", text: plain("✅ Confirm"), value: req.id },
           { type: "button", action_id: REQ_ACTIONS.edit, text: plain("Edit"), value: req.id },
           { type: "button", action_id: REQ_ACTIONS.dismiss, text: plain("Dismiss"), value: req.id },
         ],
@@ -143,6 +141,7 @@ function liveRequest(req: RequestRow, asks: AskRow[]): Rendered {
         const menu = askMenu(a);
         return { ...section(askLine(a), menu ? { accessory: menu } : {}), block_id: `s:${a.id}` };
       }),
+      context("Reply here in plain words (“done, here's the link”, “Carol owns this”) or use the menus. Your full plate is in my *Home* tab."),
     ],
   };
 }
@@ -171,9 +170,10 @@ export interface DmContext {
 const threadLink = (permalink: string | null, label = "thread") => (permalink ? ` · ${link(permalink, `Open ${label}`)}` : "");
 const quote = (s: string) => `> ${esc(s).replace(/\n/g, "\n> ")}`;
 
+/** The owner's moves on a fresh ask, preferred ones as buttons and the rest in the overflow menu. */
 function ownerButtons(ask: AskRow, viewer: string): Block | null {
   const wanted: AskActionKind[] = ["accept_now", "accept_later", "done", "ack", "reject", "send_back"];
-  return askActions(ask, availableActions(ask, viewer).filter((k) => wanted.includes(k)));
+  return askActions(ask, orderActions(ask, viewer).filter((k) => wanted.includes(k)));
 }
 
 /**
@@ -328,7 +328,8 @@ export function reminderButtons(ask: AskRow, viewer: string): { kinds: AskAction
     return { kinds, labels: { accept_later: "Set deadline", snooze: "Snooze anyway" } };
   }
   const kinds = REMINDER_OWNER_ORDER.filter((k) => available.includes(k));
-  if (ask.state === "proposed" && available.includes("reject")) kinds.push("reject");
+  // A proposed ask hasn't been answered: the answer (accept or reject) stays visible, Done and Snooze go to the menu.
+  if (ask.state === "proposed" && available.includes("reject")) kinds.splice(2, 0, "reject");
   return { kinds, labels: {} };
 }
 

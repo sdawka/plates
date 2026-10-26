@@ -12,7 +12,7 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
 |---|---|
 | Busy people let asks drop | Each ask is a tracked item that is **always on exactly one person's plate**. **Only the requester can end an ask** (close or withdraw it), so nothing disappears without the requester knowing. |
 | Several asks in one message, and the latest one gets all the attention | The agent splits a message into **separate asks** grouped as a *request*. Every view and reminder lists all open asks in the request, oldest first. |
-| Many asks only need "got it, here's what I'll do next" | **Ack + next step** closes acknowledgement asks with one click. |
+| Many asks only need "got it, here's what I'll do next" | **Acknowledge** (with a next step) closes acknowledgement asks with one click, and is the first button on an acknowledgement ask. |
 | Busy people need to defer without things disappearing | **Snooze changes when you get reminded, not whether the item is shown.** Snoozed asks stay on the plate with their wake time and snooze count. |
 | Writing up a request is friction | The agent drafts the request itself from the thread and the messages before it. |
 
@@ -36,7 +36,7 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
 
 ### A. Capture (anyone tags the agent, anywhere)
 1. Anyone types `@plates` in a thread or channel. They can add hints such as `@bob by Friday`, or just tag it with nothing else. The person who tags it doesn't have to be the requester.
-2. The bot acks within Slack's 3-second limit ("Reading the thread…") and queues the extraction.
+2. The bot acks within Slack's 3-second limit ("👀 Reading the thread…") and queues the extraction. That placeholder is edited into the confirmation (or the failure note), so the thread never keeps a stale "Reading…" above the card.
 3. Gather context:
    - In a thread: all replies from `conversations.replies`.
    - Not in a thread: the last ~30 messages or 24h of `conversations.history`, whichever is smaller, plus any threads those messages link to.
@@ -54,7 +54,10 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
    > ☐ Q3 numbers · few hours · high
    > ☐ Ack pricing change · 2–5 min · normal
    > ☐ Intro to Dana · <1 hr · low
-   > React ✅ to confirm or ❌ to change, or just reply.
+   > Only @dana or @bob can confirm. Something off? Just reply here or use Edit.
+   > [✅ Confirm] [Edit] [Dismiss]
+
+   **Confirming**: the ✅ Confirm button, or a reaction. The button is the discoverable path; reactions keep working for people who already use them.
 
    **Reacting to confirm** (`reaction_added` on this message, **from the inferred requester or the inferred owner only**):
    - ✅ / 👍 / ☑️ means **yes**. The request is created, the message becomes the live request message, and the owner is notified.
@@ -93,19 +96,19 @@ Other ways to capture: a message shortcut ("⋯ → Put on someone's plate"), `/
 ```
 
 **Owner actions** (they never end an ask; each one moves it somewhere):
-- **Accept → Now**: status becomes *in progress*.
-- **Accept → Later**: the owner sets their own deadline (a date, "next week", or "no date yet").
-- **Done**: optional link, file or note. **Ack + next step** for acknowledgements. Either way the ask moves to the requester's plate as **delivered**, and the requester gets a notification.
+- **Start now** (accept now): status becomes *in progress*.
+- **Accept for later**: the owner sets their own deadline (a date, "next week", or "no date yet").
+- **Done**: optional link, file or note. **Acknowledge** (with a next step) for acknowledgements. Either way the ask moves to the requester's plate as **delivered**, and the requester gets a notification.
 - **Reject**: a reason is optional, but the form asks for one ("Reason (optional, helps @dana)"). The ask moves to the requester's plate.
 - **Send back: needs more info**: the owner adds a question, and the ask moves to the requester's plate.
-- **Redirect** to someone else, who gets it as proposed.
+- **Hand off** (redirect) to someone else, who gets it as proposed.
 - **Set or change the deadline** at any time.
 - **Snooze**.
 
 **Requester actions** (only the inferred requester):
 - **Close**: ends the ask. This is the only way an ask is completed. One click on a delivered notification ("👍 Got it").
 - **Put back on the plate**: works from delivered, rejected or clarify. The requester adds a note: more detail, an answer, pushback ("it's yours because the API is yours"), or "this isn't what I needed". The ask goes back to the owner's plate as *proposed*, and the round count goes up. There's no limit on rounds.
-- **Redirect** to a different owner.
+- **Hand off** to a different owner.
 - **Withdraw**: ends the ask from any state, and the owner is told.
 
 **Each move:**
@@ -133,18 +136,19 @@ How it decides:
 - **Owner deadline**: set on accept or at any time after. **Every change DMs the requester** ("@bob moved *Q3 numbers*: Thu → Mon") and updates the thread message. The change count is shown on the ask.
 - **Snooze**: *in 2h / tomorrow AM / next week / after date / custom*. The ask stays on the plate, marked 💤 with its wake time.
   - The snooze count is shown to both people ("💤×2").
-  - After the **3rd snooze**, the next reminder puts *Set a deadline · Redirect · Reject* before *Snooze anyway*. Snoozing anyway is still counted.
+  - After the **3rd snooze**, the next reminder puts *Set deadline · Hand off · Reject* before *Snooze anyway*. Snoozing anyway is still counted.
 
 ### E. Home tab (the plate)
 - **Needs your response**: asks proposed to you, and asks of yours that were delivered, rejected or sent back to you. Delivered asks have one-click *Close* and *Put back* buttons.
-- **On my plate**: in progress → accepted with a deadline (soonest first) → accepted with no date → snoozed (greyed). Grouped by requester, and showing size, urgency, deadline, snooze count and round count.
+- **On your plate**: in progress → accepted with a deadline (soonest first) → accepted with no date → snoozed (greyed). Grouped by requester, and showing size, urgency, deadline, snooze count and round count.
 - **Unconfirmed**: requests where you're the requester, owner or tagger that were never confirmed, with a ✅ button for the requester or owner.
 - **Waiting on others**: asks you've made that are on someone else's plate, with their status, deadline and last activity.
-- **Summary line**: open asks by size, e.g. "3 × few hours, 5 × <1 hr, 4 × 2–5 min".
+- **Headline**: "*2 asks need your response* · 4 asks on your plate (⚠️ 1 overdue) · waiting on 3 asks from others", with open work by size underneath ("3 × few hours · 5 × <1 hr"). Section headers carry counts; *Needs your response* and *Unconfirmed* only appear when non-empty; a first-time user sees how to put something on a plate instead of empty sections. A ↻ Refresh button republishes the view.
+- Every surface shows at most three buttons per ask, the rest in a ⋯ overflow menu, in the same preferred order (Home, owner DM, reminders).
 - Every action from flow B is available inline. Filters: by person and by state.
 
 ### F. Reminders
-- **Daily digest DM** at a time the person chooses, in their time zone: everything in *Needs your response* and *On my plate*.
+- **Daily digest DM** at a time the person chooses, in their time zone: everything in *Needs your response* and *On your plate*.
 - **Ask-level reminders**: on the deadline day, then the next working day, then weekly. They go to the person whose plate the ask is on. Snoozed asks aren't reminded until they wake, but they still appear in the digest and on Home.
 - **Delivered asks** waiting for the requester to close them only appear in the requester's digest and Home tab. They aren't reminded about individually.
 - A daily cap per person (a user setting). Reminders over the cap go into the digest.
@@ -224,7 +228,7 @@ Slack ──events/interactions/commands──▶ Worker (slack-cloudflare-worke
 - Confirmation by reaction (✅ / ❌ / other emoji → clarifying question) or by plain-language reply, which re-extracts the request.
 - Owner DM. All flow B actions as buttons: accept now/later, done/ack (→ delivered on the requester's plate), reject, send back, redirect. Requester actions: close, put back, redirect, withdraw.
 - Deadline set/change with a DM to the requester. Snooze with its count.
-- Home tab: Needs your response, On my plate, Waiting on others.
+- Home tab: Needs your response, On your plate, Waiting on others.
 - PlateKeeper DO: snooze wake-ups and the daily digest.
 
 **Phase 2: talk instead of click**

@@ -16,7 +16,7 @@ describe("@plates in a thread that already has a request", () => {
     expect(h.queue.sentOfKind("correct")).toEqual([
       { kind: "correct", requestId: t.requestId, userId: USERS.dana, text: reply.text, messageTs: reply.ts },
     ]);
-    expect(h.slack.posts({ thread_ts: t.root.ts }).filter((p) => p.args.text === "Reading the thread…")).toHaveLength(1);
+    expect(h.slack.posts({ thread_ts: t.root.ts }).filter((p) => p.args.text === "👀 Reading the thread…")).toHaveLength(1);
   });
 
   it("a mention on a confirmed request queues an intent job", async () => {

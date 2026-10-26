@@ -102,7 +102,7 @@ describe("unconfirmed requests: nudge, discard, Home, confirm", () => {
     // The following working day: discarded, card says so, Home lists it under Unconfirmed.
     await h.fireAlarms(wedNine);
     expect(h.requests()[0]!.status).toBe("discarded");
-    expect(text(h.slack.message(CHANNEL, t.card.ts))).toContain("This request was not confirmed");
+    expect(text(h.slack.message(CHANNEL, t.card.ts))).toContain("Nobody confirmed this in time");
     await h.openHome(USERS.dana);
     const home = flatText(h.slack.homeViews.get(USERS.dana)!);
     expect(home).toContain("Unconfirmed");
@@ -114,7 +114,7 @@ describe("unconfirmed requests: nudge, discard, Home, confirm", () => {
     expect(h.requests()[0]).toMatchObject({ status: "confirmed", confirmed_by: USERS.dana });
     expect(h.asks()).toHaveLength(1);
     expect(text(h.slack.im(USERS.bob).messages.at(-1)!)).toContain("asked you for 1 thing");
-    expect(flatText(h.slack.homeViews.get(USERS.dana)!)).toContain("No unconfirmed requests");
+    expect(flatText(h.slack.homeViews.get(USERS.dana)!)).not.toContain("Unconfirmed");
     expect(h.errors).toEqual([]);
   });
 
@@ -134,7 +134,7 @@ describe("unconfirmed requests: nudge, discard, Home, confirm", () => {
     expect(JSON.stringify(h.slack.message(CHANNEL, t.card.ts).blocks)).not.toContain("req:");
     for (const u of [USERS.dana, USERS.bob, USERS.tara]) {
       await h.openHome(u);
-      expect(flatText(h.slack.homeViews.get(u)!), u).toContain("No unconfirmed requests");
+      expect(flatText(h.slack.homeViews.get(u)!), u).not.toContain("Unconfirmed");
     }
     // A late ✅ on the card does nothing.
     await h.react(USERS.dana, { channel: CHANNEL, ts: t.card.ts }, "white_check_mark");

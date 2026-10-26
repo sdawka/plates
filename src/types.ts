@@ -239,7 +239,7 @@ export type Effect =
     }
   | { kind: "refresh_home"; userId: string }
   | { kind: "reschedule"; userId: string } // tell that user's PlateKeeper to recompute alarms
-  | { kind: "thread_reply"; channelId: string; threadTs: string; text: string } // plain text in a thread
+  | { kind: "thread_reply"; channelId: string; threadTs: string; text: string; replaceTs?: string } // plain text in a thread; edits the message at replaceTs instead of posting
   | { kind: "tracker_sync"; askId: string } // mirror a deliverable ask's state to Jira/Linear (no-op when off)
   // A DM whose button was used: its buttons for `blockId` become a line saying what happened.
   | { kind: "settle_dm"; channelId: string; ts: string; blockId: string; label: string; askId?: string; actorId?: string };
@@ -260,6 +260,8 @@ export type ExtractJob =
       sourceUserId?: string;
       /** Channel name from the shortcut payload ("directmessage", "mpdm-…"), used to classify DMs. */
       channelName?: string;
+      /** ts of the "Reading the thread…" placeholder the bot posted; it becomes the card (or the failure note). */
+      ackTs?: string;
     }
   | {
       kind: "correct"; // plain-language reply to a pending confirmation

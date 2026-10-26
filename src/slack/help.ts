@@ -21,9 +21,9 @@ export const SUGGESTED_PROMPTS = [
 
 const HELP_BODY: string[] = [
   "*Capture an ask*\n• Tag @plates in a thread. I read it and work out who's asking whom.\n• On any message, ⋯ → *Put on someone's plate*.\n• `/plates @bob send the Q3 deck by Friday`\n• Or DM me the ask: “remind me to…”, “Dana needs the deck from Bob by Friday”.",
-  "*Confirm*\nI always post what I understood first. The person asking or the person doing it confirms with ✅, or replies to fix it.",
-  "*Work through it*\nYour plate lives in my *Home* tab: start, snooze, mark done, send back, hand it to someone else. You can also reply in the ask's thread in plain words (“done, here's the link”, “Dana owns this”).",
-  "*Reminders*\nA daily digest, then a nudge on the due date. Only the person who asked can close an ask.",
+  "*Confirm*\nI always post what I understood first. The person asking or the person doing it presses *✅ Confirm* (a ✅ reaction works too), or replies to fix it (“it's Carol, not Bob”).",
+  "*Work through it*\nYour plate lives in my *Home* tab: start, snooze, mark done, send back, hand it off. You can also reply in the ask's thread in plain words (“done, here's the link”, “Dana owns this”) and I'll apply it, with Undo.",
+  "*Reminders*\nA daily digest at a time you choose, then a nudge on the due date. Only the person who asked can close an ask, so nothing disappears unnoticed.",
 ];
 
 export interface HelpOptions {

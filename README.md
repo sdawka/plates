@@ -104,10 +104,10 @@ npm run local:e2e   # the real Worker in `wrangler dev --local` (D1, Queues, DO 
 Use two or three people (call them Dana, Bob, Tara). Everything below should also show on each person's **Home** tab.
 
 1. **Invite**: `/invite @plates` in a test channel.
-2. **Tag**: Dana writes "@Bob can you send the Q3 numbers by Friday, and review the deck?"; Tara replies in the thread "@plates". Expect "Reading the thread…", then a confirmation naming Dana → Bob, tagged by Tara, with two items.
-3. **Confirm rules**: Tara reacts ✅ → nothing (tagger can't confirm). Bob reacts 🤔 → a clarifying question. Bob reacts ✅ → confirmed; Bob gets a DM to accept.
+2. **Tag**: Dana writes "@Bob can you send the Q3 numbers by Friday, and review the deck?"; Tara replies in the thread "@plates". Expect "👀 Reading the thread…", which turns into a confirmation naming Dana → Bob, tagged by Tara, with two items and a **✅ Confirm** button.
+3. **Confirm rules**: Tara presses Confirm (or reacts ✅) → told only Dana or Bob can. Bob reacts 🤔 → a clarifying question. Bob presses **✅ Confirm** (or reacts ✅) → confirmed; Bob gets a DM with *Start now · Accept for later · Reject* and a ⋯ menu for the rest.
 4. **Correct**: on a fresh tag, reply "@plates it's Carol not Bob" or just "it's Carol" → the same confirmation updates, no second one.
-5. **Owner actions**: Bob accepts one item later with a deadline (Dana gets a DM), changes the deadline (Dana gets "Thu → Mon"), snoozes the other three times (count shows 💤×3, then the deadline/redirect/reject prompt).
+5. **Owner actions**: Bob accepts one item for later with a deadline (Dana gets a DM), changes the deadline (Dana gets "Thu → Mon"), snoozes the other three times (count shows 💤×3, then the deadline / hand off / reject prompt). A past deadline shows ⚠️ overdue on Home and in the digest.
 6. **Replies in the thread**: Bob writes "on it" → applied with an Undo button; Undo restores it. Bob writes something ambiguous → "Did you mean …?".
 7. **Done and close**: Bob marks done with a link → item lands on Dana's plate as delivered; Dana puts it back, Bob re-delivers, Dana closes.
 8. **Reject / send back**: Bob rejects with a reason → on Dana's plate; Dana puts it back.

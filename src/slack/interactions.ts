@@ -11,7 +11,7 @@ import { TransitionError, type AskAction, type Effect, type Env, type RequestRow
 import { helpModal } from "./help";
 import { slackCall } from "./api";
 import {
-  ACTION_DONE_LABEL, ACTION_LABEL, BUMP_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID, HELP_OPEN_ACTION_ID,
+  ACTION_DONE_LABEL, ACTION_LABEL, BUMP_ACTION_ID, HOME_REFRESH_ACTION_ID, NEEDS_MODAL, PROPOSAL_ACTIONS, REQ_ACTIONS, SETTINGS_CALLBACK_ID, SETTINGS_OPEN_ACTION_ID, UNDO_ACTION_ID, HELP_OPEN_ACTION_ID,
   parseAskActionId, parseModalCallbackId, type AskActionKind, type ModalMeta,
 } from "./actions";
 import { openModalLazily, openSettings } from "./commands";
@@ -156,6 +156,10 @@ async function onBlockAction(env: Env, p: BlockActionsPayload): Promise<void> {
     return;
   }
   if (action.action_id === SETTINGS_OPEN_ACTION_ID) return openSettings(env, p.trigger_id ?? "", p.user.id);
+  if (action.action_id === HOME_REFRESH_ACTION_ID) {
+    await dispatch(env, [{ kind: "refresh_home", userId: p.user.id }]);
+    return;
+  }
   if (action.action_id === HELP_OPEN_ACTION_ID) {
     if (p.trigger_id) await slackCall(env, "views.open", { trigger_id: p.trigger_id, view: helpModal() });
     return;

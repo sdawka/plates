@@ -72,7 +72,8 @@ async function classifyChannel(env: Env, job: Extract<ExtractJob, { kind: "extra
   return "unknown";
 }
 
-const reply = (channelId: string, threadTs: string, text: string): Effect => ({ kind: "thread_reply", channelId, threadTs, text });
+const reply = (channelId: string, threadTs: string, text: string, replaceTs?: string): Effect =>
+  ({ kind: "thread_reply", channelId, threadTs, text, ...(replaceTs && { replaceTs }) });
 
 function fanOut(userIds: (string | null | undefined)[], reschedule: (string | null | undefined)[]): Effect[] {
   const home = [...new Set(userIds.filter((u): u is string => !!u))];
@@ -162,7 +163,8 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
     .bind(job.messageTs, job.channelId, job.taggerId)
     .all<{ id: string; message_ts: string | null; channel_id: string }>();
   if (existing.results.length > 0) {
-    const unposted = existing.results.filter((r) => !r.message_ts);
+    // A row that still points at the placeholder may not have been rendered into it yet; rendering twice is harmless.
+    const unposted = existing.results.filter((r) => !r.message_ts || (job.ackTs !== undefined && r.message_ts === job.ackTs));
     if (unposted.length === 0 && job.origin && job.origin !== "mention") {
       // A deliberate re-capture of something already on a plate: say so instead of staying silent.
       const first = existing.results[0]!;
@@ -190,7 +192,7 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
     if (job.origin === "command") ctx = await withCommandMessage(env, ctx, job.messageTs, job.taggerId, job.text);
   } catch (e) {
     if (!(e instanceof ChannelUnreadableError)) throw e;
-    if (job.origin !== "shortcut") return [reply(job.channelId, threadTs, INVITE_REPLY)];
+    if (job.origin !== "shortcut") return [reply(job.channelId, threadTs, INVITE_REPLY, job.ackTs)];
     const token = await getUserToken(env, job.taggerId);
     kind = await classifyChannel(env, job, token);
     if (kind !== "im" && kind !== "mpim") {
@@ -252,7 +254,7 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
     });
     target = { channelId: dmId, threadTs: anchor.ts };
   } else if (groups.length === 0) {
-    return [reply(job.channelId, threadTs, NO_ASK_REPLY)];
+    return [reply(job.channelId, threadTs, NO_ASK_REPLY, job.ackTs)];
   }
 
   await attachPermalinks(readEnv, job.channelId, groups, dmFallback ? { [job.messageTs]: capturedLink } : {});
@@ -261,6 +263,8 @@ async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract
   const people: (string | null)[] = [job.taggerId];
   const keepers: (string | null)[] = [];
   const rows = groups.map((g) => newRequestRow(g, { ...target, taggerId: job.taggerId, tagMessageTs: job.messageTs }));
+  // The first card takes over the "Reading the thread…" placeholder instead of stacking under it.
+  if (job.ackTs && !dmFallback && rows[0]) rows[0].message_ts = job.ackTs;
   await env.DB.batch(rows.map((row) => insertRequestStmt(env.DB, row))); // all groups or none
   for (const row of rows) {
     effects.push({ kind: "render_request", requestId: row.id });
@@ -494,7 +498,7 @@ export const JOB_FAILED_REPLY = "Sorry, something went wrong while I was reading
 
 /** Where to tell people a job failed. Intent jobs fail silently: nobody asked the bot anything. */
 export async function failureReply(env: Env, job: ExtractJob, text: string): Promise<Effect[]> {
-  if (job.kind === "extract") return [reply(job.channelId, job.threadTs ?? job.messageTs, text)];
+  if (job.kind === "extract") return [reply(job.channelId, job.threadTs ?? job.messageTs, text, job.ackTs)];
   if (job.kind === "intent") return [];
   const req = await getRequest(env.DB, job.requestId);
   return req ? [reply(req.channel_id, req.thread_ts, text)] : [];

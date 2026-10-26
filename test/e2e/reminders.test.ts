@@ -131,16 +131,16 @@ describe("daily cap", () => {
     await resched(USERS.bob);
     await h.fireAlarms(at(THU)); // reminders at 09:00
     await h.fireAlarms(at(THU, 12)); // digest at 12:00
-    const digest = h.slack.dmTexts(USERS.bob).filter((t) => t.includes("Open Plates' Home tab")).at(-1)!;
-    expect(digest).toContain("Reminders held back today: 2");
+    const digest = h.slack.dmTexts(USERS.bob).filter((t) => t.includes("daily Plates digest")).at(-1)!;
+    expect(digest).toContain("2 reminders held back today");
   });
 
   it("with default settings the same-morning digest says how many reminders were held back", async () => {
     await four();
     await h.env.DB.prepare("UPDATE user_prefs SET max_reminders_per_day = 2 WHERE user_id = ?").bind(USERS.bob).run();
     await h.fireAlarms(at(THU));
-    const digest = h.slack.dmTexts(USERS.bob).filter((t) => t.includes("Open Plates' Home tab")).at(-1)!;
-    expect(digest).toContain("Reminders held back today: 2");
+    const digest = h.slack.dmTexts(USERS.bob).filter((t) => t.includes("daily Plates digest")).at(-1)!;
+    expect(digest).toContain("2 reminders held back today");
   });
 });
 
@@ -152,8 +152,8 @@ describe("lighter reminders", () => {
     await h.fireAlarms(at(TUE));
     expect(reminders()).toHaveLength(1);
     const ids = actionIds(reminders()[0]!);
-    expect(ids.slice(0, 2)).toEqual(["ask:accept_now", "ask:accept_later"]);
-    expect(ids.at(-1)).toBe("ask:reject");
+    expect(ids.slice(0, 3)).toEqual(["ask:accept_now", "ask:accept_later", "ask:reject"]);
+    expect(ids.at(-1)).toBe("ask:overflow");
     await h.fireAlarms(at(TUE + 6));
     expect(reminders()).toHaveLength(1);
     await h.fireAlarms(at(TUE + 7));
@@ -190,7 +190,7 @@ describe("asks snoozed three times", () => {
     await h.fireAlarms(MONDAY_10AM);
     const msg = reminders()[0]!;
     expect(actionIds(msg)).toEqual(["ask:set_deadline", "ask:redirect", "ask:reject", "ask:snooze"]);
-    expect(buttons(msg, a!.id).map((e) => (e.text as { text: string }).text)).toEqual(["Set deadline", "Redirect", "Reject", "Snooze anyway"]);
+    expect(buttons(msg, a!.id).map((e) => (e.text as { text: string }).text)).toEqual(["Set deadline", "Hand off", "Reject", "Snooze anyway"]);
     expect(flatText(msg)).toContain("Snoozed 3 times. Pick a deadline, hand it off, or say no?");
     expect(flatText(msg)).toContain("💤×3");
   });
@@ -200,7 +200,7 @@ describe("asks snoozed three times", () => {
     await h.fireAlarms(MONDAY_10AM);
     const msg = reminders()[0]!;
     expect(actionIds(msg)).toEqual(["ask:accept_later", "ask:redirect", "ask:reject", "ask:snooze"]);
-    expect(interactiveElements(msg.blocks).map((e) => (e.element.text as { text: string }).text)).toEqual(["Set deadline", "Redirect", "Reject", "Snooze anyway"]);
+    expect(interactiveElements(msg.blocks).map((e) => (e.element.text as { text: string }).text)).toEqual(["Set deadline", "Hand off", "Reject", "Snooze anyway"]);
   });
 
   it("two snoozes is still the ordinary set, with no nudge text", async () => {

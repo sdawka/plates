@@ -33,10 +33,34 @@ const buttonIds = (b: Block | undefined) =>
   ((b?.elements as { action_id: string; value?: string; type: string }[]) ?? []).map((e) => e.action_id);
 
 describe("buildHomeView", () => {
-  it("shows friendly empty states", () => {
+  it("welcomes a first-time user instead of showing four empty sections", () => {
     const { blocks } = buildHomeView(empty, "UME", NOW);
-    expect(text(blocks)).toContain("Nothing waiting on you");
+    expect(text(blocks)).toContain("Your plate is clear");
+    expect(text(blocks)).toContain("Put on someone's plate");
+    expect(blocks.filter((b) => b.type === "header")).toHaveLength(1);
+    expect(text(blocks)).toContain("home:refresh");
+  });
+
+  it("hides empty 'Needs your response' and 'Unconfirmed', keeps the plate and waiting sections", () => {
+    const { blocks } = buildHomeView({ ...empty, plate: [ask({ id: "a" })] }, "UME", NOW);
+    const headers = blocks.filter((b) => b.type === "header").map((b) => (b.text as { text: string }).text);
+    expect(headers).toEqual(["Your plate", "On your plate (1)", "Waiting on others"]);
     expect(text(blocks)).toContain("You aren't waiting on anyone");
+  });
+
+  it("counts what needs you and flags overdue asks in the headline and the card", () => {
+    const plate = [
+      ask({ id: "p", state: "proposed" }),
+      ask({ id: "late", state: "accepted", deadline_at: NOW - DAY }),
+      ask({ id: "ok", state: "accepted", deadline_at: NOW + DAY }),
+    ];
+    const waiting = [ask({ id: "w", requester_id: "UME", owner_id: "UBOB", holder_id: "UBOB", deadline_at: NOW - 2 * DAY })];
+    const blocks = buildHomeView({ ...empty, plate, waiting }, "UME", NOW).blocks;
+    const s = text(blocks);
+    expect(s).toContain("*1 ask needs your response* · 2 asks on your plate (⚠️ 1 overdue) · waiting on 1 ask from others");
+    expect(text(find(blocks, "plate:late"))).toContain("⚠️ overdue");
+    expect(text(find(blocks, "plate:ok"))).not.toContain("overdue");
+    expect(text(find(blocks, "wait:w"))).toContain("⚠️ overdue");
   });
 
   it("summarises plate by size", () => {

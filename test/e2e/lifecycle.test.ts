@@ -148,7 +148,7 @@ describe("delivery, rejection and closing", () => {
 
   it("a bad link is flagged on the link field", async () => {
     await tagAndConfirm(h);
-    await h.click(USERS.bob, dmRef(USERS.bob), "ask:done", ask().id as string);
+    await h.choose(USERS.bob, dmRef(USERS.bob), "ask:overflow", `ask:done|${ask().id as string}`);
     const res = await h.submit(USERS.bob, { link: "not a url" });
     expect(res.body).toEqual({ response_action: "errors", errors: { link: "Enter a full link starting with http:// or https://" } });
   });
@@ -156,7 +156,7 @@ describe("delivery, rejection and closing", () => {
   it("only the requester can close: the owner's attempt is denied with an ephemeral message", async () => {
     const t = await tagAndConfirm(h);
     const id = ask().id as string;
-    await h.click(USERS.bob, dmRef(USERS.bob), "ask:done", id);
+    await h.choose(USERS.bob, dmRef(USERS.bob), "ask:overflow", `ask:done|${id}`);
     await h.submit(USERS.bob, {});
     expect(ask().state).toBe("delivered");
 
@@ -233,7 +233,7 @@ describe("delivery, rejection and closing", () => {
   it("send back asks the requester; their put back answers", async () => {
     await tagAndConfirm(h);
     const id = ask().id as string;
-    await h.click(USERS.bob, dmRef(USERS.bob), "ask:send_back", id);
+    await h.choose(USERS.bob, dmRef(USERS.bob), "ask:overflow", `ask:send_back|${id}`);
     await h.submit(USERS.bob, { question: "Which quarter?" });
     expect(ask().state).toBe("clarify");
     const dm = h.slack.im(USERS.dana).messages.at(-1)!;
@@ -260,7 +260,7 @@ describe("modal lifecycle details", () => {
     await tagAndConfirm(h);
     const payload = h.ingress.blockActions({
       user: USERS.bob, blocks: h.slack.message(dmRef(USERS.bob).channel, dmRef(USERS.bob).ts).blocks ?? [],
-      actionId: "ask:done", value: ask().id as string, where: dmRef(USERS.bob),
+      actionId: "ask:accept_later", value: ask().id as string, where: dmRef(USERS.bob),
     });
     h.clock.advance(4000);
     await h.ingress.interaction(payload);

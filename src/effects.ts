@@ -33,11 +33,23 @@ function run(env: Env, effect: Effect): Promise<unknown> {
     case "dm": return dmEffect(env, effect);
     case "refresh_home": return publishHome(env, effect.userId);
     case "reschedule": return env.KEEPER.get(env.KEEPER.idFromName(effect.userId)).reschedule(effect.userId);
-    case "thread_reply":
-      return slackCall(env, "chat.postMessage", { channel: effect.channelId, thread_ts: effect.threadTs, text: effect.text });
+    case "thread_reply": return threadReply(env, effect);
     case "tracker_sync": return syncTracker(env, effect.askId);
     case "settle_dm": return settleDm(env, effect);
   }
+}
+
+/** Posts in the thread, or turns the placeholder at `replaceTs` into the reply so the thread doesn't keep a stale "Reading…". */
+async function threadReply(env: Env, effect: Of<"thread_reply">): Promise<void> {
+  if (effect.replaceTs) {
+    try {
+      await slackCall(env, "chat.update", { channel: effect.channelId, ts: effect.replaceTs, text: effect.text, blocks: [] });
+      return;
+    } catch (err) {
+      console.error("placeholder update failed, posting instead", err);
+    }
+  }
+  await slackCall(env, "chat.postMessage", { channel: effect.channelId, thread_ts: effect.threadTs, text: effect.text });
 }
 
 /** Replaces the used buttons in a DM with what happened and the next buttons, so the DM never offers a done move. */

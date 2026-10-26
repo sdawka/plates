@@ -95,6 +95,14 @@ async function onMention(env: Env, e: MessageLike, ec: EventContext): Promise<vo
   }
   // A mention inside a thread that already has a request is a correction or a follow-up, not a new capture.
   if (e.thread_ts && e.thread_ts !== e.ts && (await routeThreadReply(env, e, e.user, e.thread_ts, ec))) return;
+  // The placeholder goes first so extraction can turn it into the card; a failed post just means a separate card.
+  let ackTs: string | undefined;
+  try {
+    const ack = await slackCall<{ ts: string }>(env, "chat.postMessage", { channel: e.channel, thread_ts: e.thread_ts ?? e.ts, text: READING_TEXT });
+    ackTs = ack.ts;
+  } catch (err) {
+    console.error("ack post failed", err);
+  }
   await env.EXTRACT_QUEUE.send({
     kind: "extract",
     channelId: e.channel,
@@ -102,9 +110,11 @@ async function onMention(env: Env, e: MessageLike, ec: EventContext): Promise<vo
     messageTs: e.ts,
     taggerId: e.user,
     text: e.text ?? "",
+    ...(ackTs && { ackTs }),
   });
-  await slackCall(env, "chat.postMessage", { channel: e.channel, thread_ts: e.thread_ts ?? e.ts, text: "Reading the thread…" });
 }
+
+export const READING_TEXT = "👀 Reading the thread…";
 
 // ---------- message in a thread ----------
 

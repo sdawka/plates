@@ -33,7 +33,8 @@ describe("pending request message", () => {
     expect(s).toContain("*<@UDANA>* is asking *<@UBOB>* for 2 things (tagged by <@UTAG>)");
     expect(s).toContain("☐ Q3 numbers · few hours · high");
     expect(s).toContain("Ack &lt;pricing&gt;");
-    expect(s).toContain("React ✅ to confirm or ❌ to change");
+    expect(s).toContain("Only <@UDANA> or <@UBOB> can confirm");
+    expect(s).toContain("req:confirm");
     expect(s).toContain("req:edit");
   });
 
@@ -50,7 +51,7 @@ describe("pending request message", () => {
   });
 
   it("says a discarded request was not confirmed", () => {
-    expect(json(renderRequest(req({ status: "discarded" }), []).blocks)).toContain("was not confirmed");
+    expect(json(renderRequest(req({ status: "discarded" }), []).blocks)).toContain("Nobody confirmed this in time");
   });
 });
 
@@ -58,7 +59,7 @@ describe("live request message", () => {
   it("shows a header, one line per ask with a status and a menu", () => {
     const out = renderRequest(req({ status: "confirmed" }), [ask(), ask({ id: "a2", state: "in_progress" })]);
     expect(out.text).toBe("<@UDANA> → <@UBOB> · 2 asks");
-    expect(out.blocks).toHaveLength(3);
+    expect(out.blocks).toHaveLength(4); // header, two asks, how-to hint
     const s = json(out.blocks);
     expect(s).toContain("awaiting <@UBOB>");
     expect(s).toContain("in progress");
@@ -95,6 +96,17 @@ describe("DMs", () => {
     expect(s).toContain("https://x/p");
     for (const id of ["ask:accept_now", "ask:accept_later", "ask:reject", "ask:send_back", "ask:done"]) expect(s).toContain(id);
     expect(s).not.toContain("ask:close");
+    // Three buttons, then an overflow menu with the rest.
+    const actions = out.blocks.find((b) => b.type === "actions")!;
+    const els = actions.elements as { action_id: string; type: string }[];
+    expect(els.map((e) => e.action_id)).toEqual(["ask:accept_now", "ask:accept_later", "ask:reject", "ask:overflow"]);
+  });
+
+  it("request_proposed leads with Acknowledge for an acknowledgement ask", () => {
+    const a = ask({ type: "acknowledge" });
+    const out = renderDm("request_proposed", ctx({ asks: [a], ask: a }))!;
+    const actions = out.blocks.find((b) => b.type === "actions")!;
+    expect((actions.elements as { action_id: string }[])[0]!.action_id).toBe("ask:ack");
   });
 
   it("ask_delivered gives the requester Close and Put back", () => {

@@ -36,9 +36,10 @@ describe("tagging @plates in a thread", () => {
     // Immediate ack in the thread, extraction deferred to the queue.
     const ack = h.slack.posts({ thread_ts: root.ts });
     expect(ack).toHaveLength(1);
-    expect(ack[0]!.args).toMatchObject({ channel: CHANNEL, thread_ts: root.ts, text: "Reading the thread…" });
+    expect(ack[0]!.args).toMatchObject({ channel: CHANNEL, thread_ts: root.ts, text: "👀 Reading the thread…" });
+    const ackTs = ack[0]!.response.ts as string;
     expect(h.queue.sentOfKind("extract")).toEqual([
-      { kind: "extract", channelId: CHANNEL, threadTs: root.ts, messageTs: tag.ts, taggerId: USERS.tara, text: tag.text },
+      { kind: "extract", channelId: CHANNEL, threadTs: root.ts, messageTs: tag.ts, taggerId: USERS.tara, text: tag.text, ackTs },
     ]);
     expect(h.requests()).toHaveLength(0);
 
@@ -67,8 +68,12 @@ describe("tagging @plates in a thread", () => {
       status: "pending_confirmation", requester_id: USERS.dana, owner_id: USERS.bob, tagged_by_id: USERS.tara,
       channel_id: CHANNEL, thread_ts: root.ts,
     });
+    // The card takes over the placeholder: one bot message in the thread, with a Confirm button.
+    expect(request!.message_ts).toBe(ackTs);
+    expect(h.slack.posts({ thread_ts: root.ts })).toHaveLength(1);
     const card = h.slack.message(CHANNEL, request!.message_ts as string);
     const body = text(card);
+    expect(JSON.stringify(card.blocks)).toContain("req:confirm");
     expect(body).toContain(`<@${USERS.dana}>`);
     expect(body).toContain(`<@${USERS.bob}>`);
     expect(body).toContain(`tagged by <@${USERS.tara}>`);

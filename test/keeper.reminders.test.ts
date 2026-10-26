@@ -225,7 +225,7 @@ describe("timeline integration", () => {
 
   it("digest shows held-back reminders", () => {
     const d = buildDigest(ME, [ask({})], 3)!;
-    expect(JSON.stringify(d.blocks)).toContain("Reminders held back today: 3");
+    expect(JSON.stringify(d.blocks)).toContain("3 reminders held back today");
     expect(JSON.stringify(buildDigest(ME, [ask({})])!.blocks)).not.toContain("held back");
   });
 });

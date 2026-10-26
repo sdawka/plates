@@ -35,9 +35,9 @@ describe("buildDigest", () => {
     ])!;
     const text = blockText(d);
     expect(text).toContain("Needs your response (2)");
-    expect(text).toContain("On my plate (1)");
+    expect(text).toContain("On your plate (1)");
     expect(text.indexOf("Older")).toBeLessThan(text.indexOf("Newer"));
-    expect(text).toContain("Open Plates' Home tab to manage these");
+    expect(text).toContain("Act on these from my *Home* tab");
   });
 
   it("puts requester-plate states under needs response with the owner as counterparty", () => {

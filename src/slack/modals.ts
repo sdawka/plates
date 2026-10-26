@@ -62,15 +62,24 @@ function askBlocks(kind: AskActionKind, ask: AskRow, tz: string): Block[] {
   const intro = section(`*${esc(ask.title)}*`);
   switch (kind) {
     case "accept_later":
-      return [intro, input("date", "Your deadline (optional)", { type: "datepicker" }, true, "Leave empty for no date yet. The requester is told if you set one.")];
+      return [intro, input("date", "When do you expect to have it done? (optional)", { type: "datepicker" }, true, `Leave empty for no date yet. <@${ask.requester_id}> is told if you set one.`)];
     case "set_deadline": {
       const initial = ask.deadline_at ? { initial_date: dateInTz(ask.deadline_at, tz) } : {};
       return [intro, input("date", "Deadline", { type: "datepicker", ...initial }, true, "Clear the date to remove the deadline. The requester is told about changes.")];
     }
     case "done":
-      return [intro, textInput("link", "Link (optional)", true, "https://…", false), textInput("note", "Note (optional)", true)];
+      return [
+        intro,
+        section(`This goes to <@${ask.requester_id}> to close. A link or a line about where to find it saves them a question.`),
+        textInput("link", "Link (optional)", true, "https://…", false),
+        textInput("note", "Note (optional)", true, "Anything they should know"),
+      ];
     case "ack":
-      return [intro, textInput("next", "Next step", false, "e.g. I'll send the numbers Thursday")];
+      return [
+        intro,
+        section(`Tell <@${ask.requester_id}> you've seen this and what happens next. That counts as done for an acknowledgement.`),
+        textInput("next", "What happens next?", false, "e.g. I'll send the numbers Thursday"),
+      ];
     case "reject":
       return [
         intro,
@@ -78,15 +87,16 @@ function askBlocks(kind: AskActionKind, ask: AskRow, tz: string): Block[] {
         textInput("reason", "Reason (optional)", true),
       ];
     case "send_back":
-      return [intro, textInput("question", "What do you need to know?", false)];
+      return [intro, section(`<@${ask.requester_id}> gets your question and the ask moves to their plate until they answer.`), textInput("question", "What do you need to know?", false)];
     case "snooze":
       return [
         intro,
         input("preset", "Remind me", {
           type: "static_select",
           options: [option("In 2 hours", "2h"), option("Tomorrow 9am", "tomorrow"), option("Next Monday 9am", "monday"), option("Custom time…", "custom")],
+          initial_option: option("Tomorrow 9am", "tomorrow"),
         }, false, "The ask stays on your plate; only the reminder moves."),
-        input("custom", "Custom time (only for “Custom time…”)", { type: "datetimepicker" }, true),
+        input("custom", "Custom time", { type: "datetimepicker" }, true, "Only used when you pick “Custom time…” above."),
       ];
     case "set_estimate":
       return [
@@ -103,15 +113,21 @@ function askBlocks(kind: AskActionKind, ask: AskRow, tz: string): Block[] {
         }, false, "Urgency is only a label."),
       ];
     case "redirect":
-      return [intro, input("user", "Who should have this?", { type: "users_select" }, false), textInput("note", "Note (optional)", true)];
+      return [intro, input("user", "Who should have this?", { type: "users_select" }, false, "They get it as a new ask on their plate, with your note."), textInput("note", "Note (optional)", true, "Why them, or what they need to know")];
     case "put_back":
-      return [intro, textInput("note", "What should they know?", false, "More detail, an answer, or pushback")];
+      return [intro, section(`This goes back to <@${ask.owner_id}>'s plate with your note.`), textInput("note", "What should they know?", false, "More detail, an answer, or pushback")];
     case "withdraw":
-      return [intro, textInput("note", "Note (optional)", true)];
+      return [intro, section(`This ends the ask. <@${ask.owner_id}> is told it's off their plate.`), textInput("note", "Note (optional)", true)];
     default:
       return [intro];
   }
 }
+
+/** The submit button says what happens, not "Save". */
+const SUBMIT_LABEL: Partial<Record<AskActionKind, string>> = {
+  accept_later: "Accept", done: "Mark done", ack: "Acknowledge", reject: "Reject", send_back: "Send back",
+  set_deadline: "Set deadline", snooze: "Snooze", redirect: "Hand off", put_back: "Put back", withdraw: "Withdraw",
+};
 
 export function buildAskModal(kind: AskActionKind, ask: AskRow, meta: ModalMeta, tz: string): Block {
   return {
@@ -119,7 +135,7 @@ export function buildAskModal(kind: AskActionKind, ask: AskRow, meta: ModalMeta,
     callback_id: modalCallbackId(kind),
     private_metadata: JSON.stringify(meta),
     title: plain(truncate(ACTION_LABEL[kind], 24)),
-    submit: plain(kind === "withdraw" ? "Withdraw" : "Save"),
+    submit: plain(SUBMIT_LABEL[kind] ?? "Save"),
     close: plain("Cancel"),
     blocks: askBlocks(kind, ask, tz),
   };
@@ -218,7 +234,7 @@ export function buildEditModal(req: RequestRow): Block {
     input("owner", "Who is it being asked of?", { type: "users_select", ...user(req.owner_id) }, false),
   ];
   if (options.length > 0) {
-    blocks.push(input("items", "Items", { type: "checkboxes", options, initial_options: options }, true, "Uncheck anything that isn't an ask."));
+    blocks.push(input("items", "Asks", { type: "checkboxes", options, initial_options: options }, true, "Uncheck anything that isn't really an ask. To change wording, reply in the thread instead."));
   }
   return {
     type: "modal",
@@ -242,7 +258,7 @@ export function parseEditSubmission(values: ViewValues, req: RequestRow): ParseR
   const owner = val(values, "owner")?.selected_user;
   if (!requester) return fail("requester", "Pick who is asking.");
   if (!owner) return fail("owner", "Pick who it's asked of.");
-  if (requester === owner) return fail("owner", "The requester and the owner must be different people.");
+  if (requester === owner) return fail("owner", "The person asking and the person doing it must be different people.");
 
   const drafts = parseDrafts(req);
   const shown = Math.min(drafts.length, MAX_CHECKBOXES);

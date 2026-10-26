@@ -29,8 +29,11 @@ describe("confirming with reactions", () => {
     // Owner DM: one section per ask with the owner buttons.
     const dm = h.slack.im(USERS.bob).messages.at(-1)!;
     expect(text(dm)).toContain("asked you for 2 things");
-    const ids = (dm.blocks ?? []).flatMap((b) => ((b.elements as { action_id: string }[]) ?? []).map((e) => e.action_id));
+    // Three buttons per ask, the rest behind the overflow menu.
+    const elements = (dm.blocks ?? []).flatMap((b) => (b.elements as { action_id: string; options?: { value: string }[] }[]) ?? []);
+    const ids = elements.flatMap((e) => (e.options ? e.options.map((o) => o.value.split("|")[0]!) : [e.action_id]));
     expect(ids).toEqual(expect.arrayContaining(["ask:accept_now", "ask:accept_later", "ask:done", "ask:reject", "ask:send_back"]));
+    expect(elements.filter((e) => e.action_id !== "ask:overflow").length / 2).toBeLessThanOrEqual(3);
     expect(h.errors).toEqual([]);
   });
 

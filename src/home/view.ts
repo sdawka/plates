@@ -1,12 +1,12 @@
 // Pure Home tab renderer: data in, Block Kit view out. No I/O, no Workers imports.
 
 import { OWNER_PLATE_STATES, SIZE_LABEL, type AskRow, type AskState, type DraftAsk, type RequestRow, type Size, type Urgency } from "../types";
-import { availableActions } from "../domain/transitions";
 import { isHttpUrl } from "../slack/format";
 import { dmAccessBlocks, type DmAccess } from "../slack/dmaccess";
 import { helpButton } from "../slack/help";
 import { BUMP_INTERVAL_MS } from "../domain/service";
-import { ACTION_LABEL, BUMP_ACTION_ID, REQ_ACTIONS, SETTINGS_OPEN_ACTION_ID, askActionId, type AskActionKind } from "../slack/actions";
+import { BUMP_ACTION_ID, HOME_REFRESH_ACTION_ID, REQ_ACTIONS, SETTINGS_OPEN_ACTION_ID } from "../slack/actions";
+import { actionsBlock } from "../slack/buttons";
 
 export type Block = Record<string, unknown>;
 export interface View {
@@ -23,9 +23,6 @@ export interface HomeData {
 
 export const MAX_BLOCKS = 100;
 const BUDGET = { response: 28, plate: 32, waiting: 18, unconfirmed: 12 } as const;
-const MAX_VISIBLE_BUTTONS = 3;
-const MAX_OVERFLOW = 5;
-const BUTTON_MAX = 75;
 const TEXT_MAX = 3000;
 const SIZE_ORDER: Size[] = ["days", "hours", "lt1h", "2-5min"];
 
@@ -38,7 +35,9 @@ const mrkdwn = (text: string) => ({ type: "mrkdwn", text: clamp(text, TEXT_MAX) 
 const section = (text: string, blockId?: string): Block => ({ type: "section", ...(blockId ? { block_id: blockId } : {}), text: mrkdwn(text) });
 const context = (text: string): Block => ({ type: "context", elements: [mrkdwn(text)] });
 const header = (text: string): Block => ({ type: "header", text: { type: "plain_text", text: clamp(text, 150), emoji: true } });
+const divider = (): Block => ({ type: "divider" });
 const quote = (s: string): string => `> ${esc(clamp(s, 600)).replace(/\n/g, "\n> ")}`;
+const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
 
 export function dateToken(ms: number, format = "{date_short_pretty}"): string {
   return `<!date^${Math.floor(ms / 1000)}^${format}|${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC>`;
@@ -51,79 +50,34 @@ export function formatAge(ms: number): string {
   return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
+/** "due <date>", flagged when the deadline has passed. */
+function dueText(deadlineAt: number, now: number): string {
+  return deadlineAt < now ? `⚠️ overdue · was due ${dateToken(deadlineAt)}` : `due ${dateToken(deadlineAt)}`;
+}
+
+/** Open work by size, e.g. "1 × few hours · 2 × <1 hr". Empty string when the plate is empty. */
+export function sizeSummary(plate: AskRow[]): string {
+  const parts = SIZE_ORDER.flatMap((size) => {
+    const count = plate.filter((a) => a.size === size).length;
+    return count > 0 ? [`${count} × ${SIZE_LABEL[size]}`] : [];
+  });
+  return esc(parts.join(" · "));
+}
+
 function summaryLine(plate: AskRow[]): string {
   if (plate.length === 0) return "Nothing on your plate right now.";
-  const parts = SIZE_ORDER.flatMap((size) => {
-    const n = plate.filter((a) => a.size === size).length;
-    return n > 0 ? [`${n} × ${SIZE_LABEL[size]}`] : [];
-  });
-  return `*On your plate:* ${esc(parts.join(" · "))}`;
-}
-
-// ---------- Buttons ----------
-
-const button = (label: string, kind: AskActionKind, askId: string, style?: "primary" | "danger"): Block => ({
-  type: "button",
-  action_id: askActionId(kind),
-  text: { type: "plain_text", text: clamp(label, BUTTON_MAX), emoji: true },
-  value: askId,
-  ...(style ? { style } : {}),
-});
-
-const overflow = (kinds: AskActionKind[], askId: string): Block => ({
-  type: "overflow",
-  action_id: "ask:overflow",
-  options: kinds.map((kind) => ({
-    text: { type: "plain_text", text: clamp(ACTION_LABEL[kind], BUTTON_MAX), emoji: true },
-    value: `ask:${kind}|${askId}`,
-  })),
-});
-
-/** Preferred visible actions per state, most relevant first; the rest go to the overflow menu. */
-const PREFERRED: Partial<Record<AskState, AskActionKind[]>> = {
-  proposed: ["accept_now", "accept_later", "reject"],
-  accepted: ["accept_now", "done", "ack", "snooze"],
-  in_progress: ["done", "ack", "snooze", "set_deadline"],
-  snoozed: ["accept_now", "done", "ack", "set_deadline"],
-  delivered: ["close", "put_back"],
-  rejected: ["put_back", "redirect", "close"],
-  clarify: ["put_back", "redirect", "withdraw"],
-};
-
-const STYLE: Partial<Record<AskActionKind, "primary" | "danger">> = {
-  accept_now: "primary",
-  done: "primary",
-  ack: "primary",
-  close: "primary",
-};
-
-function orderActions(ask: AskRow, viewer: string): AskActionKind[] {
-  const available = availableActions(ask, viewer);
-  const preferred = (PREFERRED[ask.state] ?? []).filter((k) => available.includes(k));
-  return [...preferred, ...available.filter((k) => !preferred.includes(k))];
-}
-
-/** Up to 3 buttons plus an overflow menu (a lone leftover action stays a button). */
-export function actionsBlock(ask: AskRow, viewer: string, blockId: string, maxVisible = MAX_VISIBLE_BUTTONS): Block | null {
-  const kinds = orderActions(ask, viewer);
-  if (kinds.length === 0) return null;
-  const fitsAsButtons = kinds.length <= maxVisible + 1;
-  const visible = fitsAsButtons ? kinds : kinds.slice(0, maxVisible);
-  const rest = fitsAsButtons ? [] : kinds.slice(maxVisible, maxVisible + MAX_OVERFLOW);
-  const elements = visible.map((k) => button(ACTION_LABEL[k], k, ask.id, STYLE[k]));
-  if (rest.length > 0) elements.push(overflow(rest, ask.id));
-  return { type: "actions", block_id: blockId, elements };
+  return `*On your plate:* ${sizeSummary(plate)}`;
 }
 
 // ---------- Ask cards ----------
 
 const URGENCY_TEXT: Record<Urgency, string | null> = { low: "low urgency", normal: null, high: "⬆️ high urgency", urgent: "🔥 urgent" };
 
-function metaParts(ask: AskRow): string[] {
+function metaParts(ask: AskRow, now: number): string[] {
   const parts = [SIZE_LABEL[ask.size]];
   const urgency = URGENCY_TEXT[ask.urgency];
   if (urgency) parts.push(urgency);
-  if (ask.deadline_at !== null) parts.push(`due ${dateToken(ask.deadline_at)}`);
+  if (ask.deadline_at !== null) parts.push(dueText(ask.deadline_at, now));
   if (ask.deadline_change_count > 0) parts.push(`moved ×${ask.deadline_change_count}`);
   if (ask.snooze_count > 0) parts.push(`💤×${ask.snooze_count}`);
   if (ask.round_count > 0) parts.push(`round ${ask.round_count + 1}`);
@@ -144,23 +98,24 @@ interface Unit {
   group?: { key: string; block: Block };
 }
 
-function responseText(ask: AskRow): string {
+function responseText(ask: AskRow, now: number): string {
   const title = `*${esc(clamp(ask.title, 300))}*`;
   const who = user(ask.owner_id);
+  const meta = metaParts(ask, now).join(" · ");
   switch (ask.state) {
     case "proposed":
-      return `📥 ${title}\n${user(ask.requester_id)} asked you · ${metaParts(ask).join(" · ")}`;
+      return `📥 ${title}\n${user(ask.requester_id)} asked you · ${meta}`;
     case "delivered":
-      return `📦 ${title}\n${who} says it's done · ${metaParts(ask).join(" · ")}${ask.done_link ? `\n${isHttpUrl(ask.done_link) ? `<${ask.done_link}|Open the result>` : esc(ask.done_link)}` : ""}`;
+      return `📦 ${title}\n${who} says it's done · ${meta}${ask.done_link ? `\n${isHttpUrl(ask.done_link) ? `<${ask.done_link}|Open the result>` : esc(ask.done_link)}` : ""}`;
     case "rejected":
-      return `🚫 ${title}\n${who} turned this down · ${metaParts(ask).join(" · ")}`;
+      return `🚫 ${title}\n${who} turned this down · ${meta}`;
     default:
-      return `❓ ${title}\n${who} needs more info · ${metaParts(ask).join(" · ")}`;
+      return `❓ ${title}\n${who} needs more info · ${meta}`;
   }
 }
 
-function responseUnit(ask: AskRow, viewer: string, withActions = true): Unit {
-  const blocks: Block[] = [section(responseText(ask), `resp:${ask.id}`)];
+function responseUnit(ask: AskRow, viewer: string, now: number, withActions = true): Unit {
+  const blocks: Block[] = [section(responseText(ask, now), `resp:${ask.id}`)];
   if (ask.last_note) blocks.push(context(quote(ask.last_note)));
   const link = sourceLink(ask);
   if (link) blocks.push(context(link));
@@ -173,7 +128,7 @@ function plateUnit(ask: AskRow, viewer: string, now: number, withActions = true)
   const snoozed = ask.state === "snoozed";
   const title = esc(clamp(ask.title, 300));
   const lines: string[] = [snoozed ? `💤 ~${title}~` : `*${title}*`];
-  const meta = metaParts(ask).filter((p) => !(snoozed && p.startsWith("💤")));
+  const meta = metaParts(ask, now).filter((p) => !(snoozed && p.startsWith("💤")));
   if (ask.state === "in_progress") meta.unshift("🔧 in progress");
   lines.push(meta.join(" · "));
   if (snoozed && ask.snoozed_until !== null) {
@@ -206,7 +161,7 @@ const STATE_WORDS: Record<AskState, string> = {
 function waitingUnit(ask: AskRow, viewer: string, now: number, withActions = true): Unit {
   const lines = [`*${esc(clamp(ask.title, 300))}*`];
   const parts = [`${user(ask.holder_id)} ${STATE_WORDS[ask.state]}`, SIZE_LABEL[ask.size]];
-  if (ask.deadline_at !== null) parts.push(`due ${dateToken(ask.deadline_at)}`);
+  if (ask.deadline_at !== null) parts.push(dueText(ask.deadline_at, now));
   if (ask.deadline_change_count > 0) parts.push(`moved ×${ask.deadline_change_count}`);
   lines.push(parts.join(" · "));
   const extra = [`asked ${formatAge(now - ask.created_at)} ago`, `last activity ${formatAge(now - ask.updated_at)} ago`];
@@ -222,7 +177,7 @@ function waitingUnit(ask: AskRow, viewer: string, now: number, withActions = tru
     const bump = {
       type: "button",
       action_id: BUMP_ACTION_ID,
-      text: { type: "plain_text", text: "Bump", emoji: true },
+      text: { type: "plain_text", text: "👋 Bump", emoji: true },
       value: ask.id,
     };
     if (actions) (actions.elements as Block[]).unshift(bump);
@@ -246,7 +201,7 @@ function draftTitles(req: RequestRow): string[] {
 function unconfirmedUnit(req: RequestRow, viewer: string): Unit {
   const titles = draftTitles(req);
   const items = titles.length > 0 ? titles.map((t) => `• ${esc(clamp(t, 200))}`).join("\n") : "• (no items extracted)";
-  const status = req.status === "discarded" ? "⌛ Not confirmed in time" : "⏳ Waiting for confirmation";
+  const status = req.status === "discarded" ? "⌛ Nobody confirmed this in time" : "⏳ Waiting for a confirmation";
   const people = `${user(req.requester_id)} asking ${user(req.owner_id)}`;
   const blocks: Block[] = [section(`${status} · ${people}\n${items}`, `unconf:${req.id}`)];
   const elements: Block[] = [];
@@ -304,9 +259,10 @@ export function fit(units: Unit[], budget: number): Block[] {
   return out;
 }
 
-function renderSection(title: string, units: Unit[], empty: string, budget: number): Block[] {
-  const body = units.length === 0 ? [context(empty)] : fit(units, budget - 1);
-  return [header(title), ...body];
+/** A titled section with its count; `empty` text when there is nothing, or nothing at all when `empty` is null. */
+function renderSection(title: string, units: Unit[], empty: string | null, budget: number): Block[] {
+  if (units.length === 0) return empty === null ? [] : [header(title), context(empty)];
+  return [header(`${title} (${units.length})`), ...fit(units, budget - 1)];
 }
 
 const byAsc = (a: number | null, b: number | null) => (a ?? 0) - (b ?? 0);
@@ -337,26 +293,56 @@ function groupByRequester(sorted: AskRow[]): AskRow[] {
 const NEEDS_RESPONSE: AskState[] = ["proposed", "delivered", "rejected", "clarify"];
 const ON_PLATE: AskState[] = ["in_progress", "accepted", "snoozed"];
 
+/** The one-line status at the top: what needs you, what you hold, what you wait on. */
+export function headline(needs: number, onPlate: number, waiting: number, overdue: number): string {
+  if (needs + onPlate + waiting === 0) return "Your plate is clear. 🎉";
+  const parts = [
+    needs > 0 ? `*${n(needs, "ask")} need${needs === 1 ? "s" : ""} your response*` : null,
+    `${n(onPlate, "ask")} on your plate${overdue > 0 ? ` (⚠️ ${n(overdue, "overdue")})` : ""}`,
+    waiting > 0 ? `waiting on ${n(waiting, "ask")} from others` : null,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+const GETTING_STARTED = [
+  "*To put something on someone's plate:*",
+  "• Tag *@plates* in a thread where you asked for something. I read it and draft the ask.",
+  "• On any message: ⋯ → *Put on someone's plate*.",
+  "• `/plates @bob send the Q3 deck by Friday`, or just DM me the ask.",
+  "The person asking or the person doing it confirms, and it shows up here.",
+].join("\n");
+
 export function buildHomeView(data: HomeData, viewerId: string, now: number): View {
   const needs = data.plate.filter((a) => NEEDS_RESPONSE.includes(a.state));
   const onPlate = groupByRequester(sortPlate(data.plate.filter((a) => ON_PLATE.includes(a.state))));
+  const overdue = onPlate.filter((a) => a.deadline_at !== null && a.deadline_at < now).length;
+  const nothing = needs.length + onPlate.length + data.waiting.length + data.unconfirmed.length === 0;
   const blocks: Block[] = [
     header("Your plate"),
-    section(summaryLine(data.plate)),
+    section(headline(needs.length, onPlate.length, data.waiting.length, overdue)),
+    ...(onPlate.length > 0 ? [context(`Open work: ${sizeSummary(onPlate)}`)] : []),
     {
       type: "actions",
       block_id: "home_settings",
       elements: [
+        { type: "button", action_id: HOME_REFRESH_ACTION_ID, text: { type: "plain_text", text: "↻ Refresh", emoji: true }, value: "refresh" },
         { type: "button", action_id: SETTINGS_OPEN_ACTION_ID, text: { type: "plain_text", text: "⚙ Settings", emoji: true }, value: "open" },
         helpButton(),
       ],
     },
-    ...renderSection("Needs your response", needs.map((a) => responseUnit(a, viewerId)), "Nothing waiting on you. 🎉", BUDGET.response),
-    ...renderSection("On my plate", onPlate.map((a) => plateUnit(a, viewerId, now)), "Your plate is clear.", BUDGET.plate),
-    ...renderSection("Waiting on others", data.waiting.map((a) => waitingUnit(a, viewerId, now)), "You aren't waiting on anyone.", BUDGET.waiting),
-    ...renderSection("Unconfirmed", data.unconfirmed.map((r) => unconfirmedUnit(r, viewerId)), "No unconfirmed requests.", BUDGET.unconfirmed),
-    ...dmAccessBlocks(data.dm),
+    context(`Updated ${dateToken(now, "{date_short_pretty} {time}")}`),
   ];
+  if (nothing) {
+    blocks.push(divider(), section(GETTING_STARTED));
+  } else {
+    blocks.push(
+      ...renderSection("Needs your response", needs.map((a) => responseUnit(a, viewerId, now)), null, BUDGET.response),
+      ...renderSection("On your plate", onPlate.map((a) => plateUnit(a, viewerId, now)), "Nothing in progress. Asks you accept land here.", BUDGET.plate),
+      ...renderSection("Waiting on others", data.waiting.map((a) => waitingUnit(a, viewerId, now)), "You aren't waiting on anyone.", BUDGET.waiting),
+      ...renderSection("Unconfirmed", data.unconfirmed.map((r) => unconfirmedUnit(r, viewerId)), null, BUDGET.unconfirmed),
+    );
+  }
+  blocks.push(...dmAccessBlocks(data.dm));
   return { type: "home", blocks: blocks.slice(0, MAX_BLOCKS) };
 }
 
@@ -384,7 +370,7 @@ export function buildPlateMessage(data: HomeData, viewerId: string, now: number,
   const text = summaryLine(data.plate).replace(/[*]/g, "");
   const half = needs.length && onPlate.length ? Math.floor(MESSAGE_BUDGET / 2) : MESSAGE_BUDGET;
   const blocks: Block[] = [section(summaryLine(data.plate))];
-  if (needs.length) blocks.push(section("*Needs your response*"), ...fit(needs.map((a) => responseUnit(a, viewerId, false)), half - 1));
+  if (needs.length) blocks.push(section("*Needs your response*"), ...fit(needs.map((a) => responseUnit(a, viewerId, now, false)), half - 1));
   if (onPlate.length) blocks.push(section("*On your plate*"), ...fit(onPlate.map((a) => plateUnit(a, viewerId, now, false)), half - 1));
   blocks.push(context(ACT_HINT));
   return { text, blocks };

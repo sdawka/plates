@@ -3,8 +3,9 @@
 
 import { decide, pMax, type Answers, type ChoiceQuestion, type NoulQuestion, type Question } from "../decide";
 import { localDateInfo, upcomingDates } from "../extract/dates";
+import { thresholdsFor } from "../thresholds";
 import { SIZE_LABEL, type Env } from "../types";
-import { DEADLINE_P, type Candidate, type IntentDecision, type IntentKind, type Shared } from "./validate";
+import { type Candidate, type IntentDecision, type IntentKind, type Shared } from "./validate";
 
 const MAX_REPLY = 2000;
 const DEADLINE_DAYS = 21;
@@ -97,11 +98,16 @@ export function buildIntentQuestions(i: IntentQuestionInput): { state: unknown; 
 export async function decideIntent(env: Env, i: IntentQuestionInput): Promise<IntentDecision> {
   const { state, questions } = buildIntentQuestions(i);
   const answers: Answers<Record<string, Question>> = await decide(env, { state, questions });
+  return reduceIntentAnswers(answers, i, thresholdsFor(env.DECIDE_MODEL).DEADLINE_P);
+}
+
+/** The raw answers reduced to an IntentDecision; the deadline is kept only at or above `deadlineP`. */
+export function reduceIntentAnswers(answers: Answers<Record<string, Question>>, i: IntentQuestionInput, deadlineP: number): IntentDecision {
   const action = answers.action;
   if (action?.type !== "choice") throw new Error("systemone: no action answer");
 
   const deadline = answers.deadline;
-  const picked = deadline?.type === "choice" && deadline.choice !== "none" && pMax(deadline) >= DEADLINE_P ? deadline.choice : null;
+  const picked = deadline?.type === "choice" && deadline.choice !== "none" && pMax(deadline) >= deadlineP ? deadline.choice : null;
   const noul = (id: string) => {
     const a = answers[id];
     return a?.type === "noul" ? a.noul : 0;

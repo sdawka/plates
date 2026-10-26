@@ -4,6 +4,7 @@
 import { getAsksByRequest, getPrefs, getRequestsInThread, newId } from "../domain/repo";
 import { applyActionDetailed } from "../domain/service";
 import { slackCall } from "../slack/api";
+import { thresholdsFor } from "../thresholds";
 import type { Rendered } from "../slack/blocks";
 import { mention } from "../slack/format";
 import { TransitionError, type AskAction, type AskRow, type Effect, type Env, type ExtractJob } from "../types";
@@ -55,7 +56,7 @@ export async function handleIntentJob(env: Env, job: IntentJob): Promise<Effect[
   const now = Date.now();
   const shared = { speaker: job.userId, text: job.text, tz, now, candidates, links: job.links, files: job.files };
   const decision = await decideIntent(env, shared);
-  const input: ValidateInput = { ...shared, decision, botUserId: job.botUserId };
+  const input: ValidateInput = { ...shared, decision, botUserId: job.botUserId, thresholds: thresholdsFor(env.DECIDE_MODEL) };
 
   const outcome = validateDecision(input);
   let effects: Effect[] = [];

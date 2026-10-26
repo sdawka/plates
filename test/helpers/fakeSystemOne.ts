@@ -8,11 +8,17 @@ import { json, type Network } from "./net";
 type Obj = Record<string, unknown>;
 
 export const SYSTEMONE_PATH = "/v1/systemone";
+/** OpenRouter's Decisions route: same body, fronts every decision model. */
+export const DECISIONS_PATH = "/alpha/decisions";
 export const SYSTEMONE_KEY = "sk-ant-test-key"; // the OpenRouter key the harness uses everywhere
 const MAX_OPTIONS = 255;
 const ID_RE = /^[A-Za-z0-9_.-]+$/;
+/** Any "vendor/model" id, as OpenRouter accepts; a slashless id is still rejected. */
+const MODEL_RE = /^[a-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
 export interface RecordedSystemOneRequest {
+  /** Endpoint path the request was posted to. */
+  path: string;
   headers: Record<string, string>;
   body: Obj;
   model: string;
@@ -45,10 +51,10 @@ export class FakeSystemOne {
   private errors: { status: number; message: string }[] = [];
   private n = 0;
 
-  constructor(readonly apiKey = SYSTEMONE_KEY, readonly modelPattern = /^typesafe\/jev-[0-9.]+/) {}
+  constructor(readonly apiKey = SYSTEMONE_KEY, readonly modelPattern = MODEL_RE) {}
 
   attach(net: Network, baseUrl: string): void {
-    net.route(`${baseUrl}${SYSTEMONE_PATH}`, (req) => this.handle(req));
+    for (const path of [SYSTEMONE_PATH, DECISIONS_PATH]) net.route(`${baseUrl}${path}`, (req) => this.handle(req));
   }
 
   private push(id: string, s: Scripted): this {
@@ -103,6 +109,7 @@ export class FakeSystemOne {
   private async handle(req: Request): Promise<Response> {
     const headers: Record<string, string> = {};
     req.headers.forEach((v, k) => (headers[k] = v));
+    const path = new URL(req.url).pathname;
     let body: Obj = {};
     try {
       if (req.method !== "POST") throw new ApiError(405, "method not allowed");
@@ -117,11 +124,11 @@ export class FakeSystemOne {
       }
       const injected = this.errors.shift();
       if (injected) throw new ApiError(injected.status, injected.message);
-      const rec = this.validate(body, headers);
+      const rec = this.validate(body, headers, path);
       return this.answer(rec);
     } catch (e) {
       if (!(e instanceof ApiError)) throw e;
-      this.requests.push(this.record(body, headers, "error"));
+      this.requests.push(this.record(body, headers, path, "error"));
       return this.fail(e.status, e.message);
     }
   }
@@ -130,12 +137,12 @@ export class FakeSystemOne {
     return json({ error: { code: ERROR_CODES[status] ?? "error", message } }, status);
   }
 
-  private record(body: Obj, headers: Record<string, string>, answeredWith: RecordedSystemOneRequest["answeredWith"]): RecordedSystemOneRequest {
+  private record(body: Obj, headers: Record<string, string>, path: string, answeredWith: RecordedSystemOneRequest["answeredWith"]): RecordedSystemOneRequest {
     const q = body.questions && typeof body.questions === "object" && !Array.isArray(body.questions) ? (body.questions as Record<string, Obj>) : {};
-    return { headers, body, model: String(body.model ?? ""), state: body.state, questions: q, answeredWith };
+    return { path, headers, body, model: String(body.model ?? ""), state: body.state, questions: q, answeredWith };
   }
 
-  private validate(b: Obj, headers: Record<string, string>): RecordedSystemOneRequest {
+  private validate(b: Obj, headers: Record<string, string>, path: string): RecordedSystemOneRequest {
     if (typeof b.model !== "string" || !this.modelPattern.test(b.model)) throw bad(`model: unknown model ${JSON.stringify(b.model)}`);
     if (b.session_id !== undefined && typeof b.session_id !== "string") throw bad("session_id: must be a string");
     if (b.state === undefined || b.state === null) throw bad("state: Field required (string, object or array)");
@@ -171,7 +178,7 @@ export class FakeSystemOne {
           throw bad(`questions.${id}.type: must be choice, score or noul`);
       }
     }
-    return this.record(b, headers, []);
+    return this.record(b, headers, path, []);
   }
 
   private answer(rec: RecordedSystemOneRequest): Response {

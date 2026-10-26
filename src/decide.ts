@@ -66,9 +66,24 @@ export function pMax(a: ChoiceAnswer | ScoreAnswer): number {
 /** Question ids may only use letters, digits, `_`, `.` and `-`. */
 export const QUESTION_ID = /^[A-Za-z0-9_.-]+$/;
 
+/**
+ * The two OpenRouter endpoints that take this request shape, relative to LLM_BASE_URL (which ends in `/api`):
+ * the TypeSafe-compatible System One route, and OpenRouter's own Decisions route that fronts every decision model.
+ * https://openrouter.ai/docs/api/api-reference/decisions
+ */
+export const DECIDE_PATHS = { systemone: "/v1/systemone", decisions: "/alpha/decisions" } as const;
+
+export function decidePath(env: Pick<Env, "DECIDE_API">): string {
+  const api = env.DECIDE_API ?? "systemone";
+  const path = (DECIDE_PATHS as Record<string, string>)[api];
+  if (!path) throw new LlmPermanentError(`DECIDE_API: unknown value ${JSON.stringify(api)} (expected "systemone" or "decisions")`);
+  return path;
+}
+
 export async function decide<Qs extends Record<string, Question>>(env: Env, req: DecideRequest<Qs>): Promise<Answers<Qs>> {
   const started = Date.now();
-  const res = await fetch(`${env.LLM_BASE_URL ?? "https://openrouter.ai/api"}/v1/systemone`, {
+  const path = decidePath(env);
+  const res = await fetch(`${env.LLM_BASE_URL ?? "https://openrouter.ai/api"}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -83,7 +98,7 @@ export async function decide<Qs extends Record<string, Question>>(env: Env, req:
       questions: req.questions,
     }),
   });
-  info("systemone call", { questions: Object.keys(req.questions), status: res.status, ms: Date.now() - started });
+  info("systemone call", { questions: Object.keys(req.questions), api: env.DECIDE_API ?? "systemone", status: res.status, ms: Date.now() - started });
   const body = (await res.json().catch(() => null)) as { answers?: Record<string, unknown>; error?: { code?: unknown; message?: string } } | null;
   if (!res.ok) {
     const msg = `systemone ${res.status}: ${body?.error?.message ?? res.statusText}`;

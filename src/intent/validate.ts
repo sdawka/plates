@@ -4,6 +4,7 @@
 
 import { parseDue } from "../extract/dates";
 import { availableActions } from "../domain/transitions";
+import { JEV_THRESHOLDS, type Thresholds } from "../thresholds";
 import type { AskAction, AskRow } from "../types";
 
 export const INTENT_KINDS = [
@@ -11,16 +12,13 @@ export const INTENT_KINDS = [
 ] as const satisfies readonly AskAction["kind"][];
 export type IntentKind = (typeof INTENT_KINDS)[number];
 
-/** Probability of the chosen action at or above which it is applied without asking (given no ambiguity). */
-export const AUTO_P = 0.85;
-/** Below this the reply is treated as chatter; between this and AUTO_P it becomes a "Did you mean". */
-export const PROPOSE_P = 0.5;
-/** At or above this the reply may apply to another ask, so the speaker picks. */
-export const AMBIGUOUS_P = 0.2;
-/** Probability that a shared file or link delivers an ask, for the "looks done?" suggestion. */
-export const DELIVERS_P = 0.6;
-/** The deadline answer is used only when this sure of the date. */
-export const DEADLINE_P = 0.5;
+// The Jev defaults, for tests and docs. At runtime the thresholds come from `ValidateInput.thresholds`
+// (see src/thresholds.ts), so a different DECIDE_MODEL can carry its own.
+export const AUTO_P = JEV_THRESHOLDS.AUTO_P;
+export const PROPOSE_P = JEV_THRESHOLDS.PROPOSE_P;
+export const AMBIGUOUS_P = JEV_THRESHOLDS.AMBIGUOUS_P;
+export const DELIVERS_P = JEV_THRESHOLDS.DELIVERS_P;
+export const DEADLINE_P = JEV_THRESHOLDS.DEADLINE_P;
 const MAX_NOTE = 500;
 
 const isIntentKind = (v: unknown): v is IntentKind => typeof v === "string" && (INTENT_KINDS as readonly string[]).includes(v);
@@ -72,6 +70,8 @@ export interface ValidateInput extends Shared {
   now: number;
   /** The bot's own user id, never a redirect target. */
   botUserId?: string;
+  /** Gates for the decision model that answered; the Jev defaults when absent. */
+  thresholds?: Thresholds;
 }
 
 export type Outcome =
@@ -144,14 +144,15 @@ export function buildAction(kind: IntentKind, i: ValidateInput): AskAction | nul
 
 export function validateDecision(i: ValidateInput): Outcome {
   const { p, ambiguous } = i.decision;
+  const t = i.thresholds ?? JEV_THRESHOLDS;
   const picked = parseChoice(i.candidates, i.decision.choice);
-  if (!picked || p < PROPOSE_P) return { kind: "none" };
+  if (!picked || p < t.PROPOSE_P) return { kind: "none" };
 
   const action = buildAction(picked.kind, i);
   if (!action) return { kind: "none" };
 
   // Possibly meant for another ask: the speaker picks among every ask the action fits.
-  const unsure = ambiguous >= AMBIGUOUS_P;
+  const unsure = ambiguous >= t.AMBIGUOUS_P;
   const eligible = i.candidates.filter((c) => c.allowed.includes(picked.kind));
   return {
     kind: "act",
@@ -159,7 +160,7 @@ export function validateDecision(i: ValidateInput): Outcome {
     askId: unsure ? null : picked.candidate.ask.id,
     eligible: unsure ? eligible : [picked.candidate],
     confidence: p,
-    auto: !unsure && p >= AUTO_P,
+    auto: !unsure && p >= t.AUTO_P,
   };
 }
 
@@ -175,7 +176,7 @@ export interface Delivery {
 export function detectDelivery(i: ValidateInput): Delivery | null {
   if (i.links.length === 0 && i.files.length === 0) return null;
   let best: Candidate | null = null;
-  let bestP = DELIVERS_P;
+  let bestP = (i.thresholds ?? JEV_THRESHOLDS).DELIVERS_P;
   for (const c of i.candidates) {
     const p = i.decision.delivers[c.ref] ?? 0;
     if (p < bestP || c.role !== "owner" || c.ask.owner_id !== i.speaker || !c.allowed.includes("done")) continue;

@@ -11,7 +11,9 @@
     "db:migrate:remote": "wrangler d1 migrations apply plates --remote",
     "local:e2e": "node scripts/run.mjs scripts/local-e2e.ts",
     "local:mock": "node scripts/run.mjs scripts/serve-mock.ts",
-    "diagram": "node scripts/run.mjs scripts/diagram.ts"
+    "diagram": "node scripts/run.mjs scripts/diagram.ts",
+    "eval": "node scripts/run.mjs scripts/eval.ts",
+    "spike:clairic": "node scripts/run.mjs scripts/spike-clairic.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",

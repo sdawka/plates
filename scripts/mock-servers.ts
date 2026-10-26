@@ -4,6 +4,7 @@
 //   /slack/response/<path>      response_url target (the fake issues these, see MockSlack)
 //   /anthropic/v1/messages      Messages API, answers come from scripted per-tool FIFO queues
 //   /anthropic/v1/systemone     System One, answers come from scripted per-question-id FIFO queues
+//   /anthropic/alpha/decisions  OpenRouter's Decisions route (DECIDE_API=decisions), same fake
 //   POST /control/script        {toolName, input}  queue the next tool_use for that tool
 //   POST /control/systemone     {id, choice?, noul?, p?}  queue the next System One answer for that question id
 //   GET  /control/calls         recorded Slack calls, response_url posts and Anthropic requests
@@ -137,8 +138,8 @@ export class MockServers {
       this.feedScript(body.toString("utf8"));
       return this.net.fetch(new Request(`${ANTHROPIC_URL}/v1/messages`, init));
     }
-    if (path === "/anthropic/v1/systemone") {
-      return this.net.fetch(new Request(`${ANTHROPIC_URL}/v1/systemone`, init));
+    if (path === "/anthropic/v1/systemone" || path === "/anthropic/alpha/decisions") {
+      return this.net.fetch(new Request(`${ANTHROPIC_URL}${path.slice("/anthropic".length)}`, init));
     }
     if (path === "/control/systemone" && incoming.method === "POST") {
       const s = JSON.parse(body.toString("utf8")) as { id: string; choice?: string; noul?: number; p?: number };

@@ -15,6 +15,10 @@ OPENROUTER_API_KEY=sk-or-
 # EXTRACT_MODEL=anthropic/claude-sonnet-5.5
 # Cheap model for clarifying questions and thread-reply intent.
 # FAST_MODEL=anthropic/claude-haiku-5.5
+# System One model for the typed decisions, and which OpenRouter route to post it to:
+# "systemone" (/v1/systemone, default) or "decisions" (/alpha/decisions, fronts every decision model on OpenRouter).
+# DECIDE_MODEL=typesafe/jev-1.14
+# DECIDE_API=systemone
 
 # ---------- local testing overrides (leave unset in production) ----------
 # Point the Slack Web API / Anthropic API at mock servers (see scripts/mock-servers.ts, `npm run local:mock`).

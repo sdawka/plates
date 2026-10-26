@@ -1,0 +1,40 @@
+{"id": "isask-001", "text": "can you send the deck?", "expect": true}
+{"id": "isask-002", "text": "ask <@UBOB> to send the Q3 numbers by friday", "expect": true}
+{"id": "isask-003", "text": "remind me to send Dana the Q3 deck by Friday", "expect": true}
+{"id": "isask-004", "text": "please review my PR when you get a chance", "expect": true}
+{"id": "isask-005", "text": "need the invoice from <@UEVE> before Thursday", "expect": true}
+{"id": "isask-006", "text": "could someone approve the vendor contract today", "expect": true}
+{"id": "isask-007", "text": "<@UBOB> can you confirm the budget numbers?", "expect": true}
+{"id": "isask-008", "text": "I need you to book the flights for the offsite", "expect": true}
+{"id": "isask-009", "text": "get me the latest churn figures", "expect": true}
+{"id": "isask-010", "text": "dana wants the slides by EOD", "expect": true}
+{"id": "isask-011", "text": "ping legal about the DPA and let me know", "expect": true}
+{"id": "isask-012", "text": "would you mind proofreading the blog post?", "expect": true}
+{"id": "isask-013", "text": "decide whether we go with option A or B by tomorrow", "expect": true}
+{"id": "isask-014", "text": "let me know once the deploy is done", "expect": true}
+{"id": "isask-015", "text": "track this: Bob owes me the Q3 numbers", "expect": true}
+{"id": "isask-016", "text": "send over the signed NDA", "expect": true}
+{"id": "isask-017", "text": "update the roadmap doc with the new dates", "expect": true}
+{"id": "isask-018", "text": "can we get a quote from the printer this week", "expect": true}
+{"id": "isask-019", "text": "acknowledge the pricing change pls", "expect": true}
+{"id": "isask-020", "text": "I'd like Eve to own the onboarding doc", "expect": true}
+{"id": "isask-021", "text": "hi, how are you?", "expect": false}
+{"id": "isask-022", "text": "what's on my plate?", "expect": false}
+{"id": "isask-023", "text": "help", "expect": false}
+{"id": "isask-024", "text": "thanks!", "expect": false}
+{"id": "isask-025", "text": "ok sounds good", "expect": false}
+{"id": "isask-026", "text": "lol", "expect": false}
+{"id": "isask-027", "text": "deploy finished, all green", "expect": false}
+{"id": "isask-028", "text": "the meeting moved to 3pm", "expect": false}
+{"id": "isask-029", "text": "fyi the office is closed Monday", "expect": false}
+{"id": "isask-030", "text": "good morning", "expect": false}
+{"id": "isask-031", "text": "I sent the deck yesterday", "expect": false}
+{"id": "isask-032", "text": "nice work on the launch", "expect": false}
+{"id": "isask-033", "text": "what time is it in Toronto?", "expect": false}
+{"id": "isask-034", "text": "how does plates work?", "expect": false}
+{"id": "isask-035", "text": "brb", "expect": false}
+{"id": "isask-036", "text": "here's the link <https://example.com>", "expect": false}
+{"id": "isask-037", "text": "👍", "expect": false}
+{"id": "isask-038", "text": "we shipped v2 today 🎉", "expect": false}
+{"id": "isask-039", "text": "I'm out Friday", "expect": false}
+{"id": "isask-040", "text": "the numbers were off by 2% last quarter", "expect": false}

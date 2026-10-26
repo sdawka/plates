@@ -12,6 +12,8 @@ export interface Env {
   EXTRACT_MODEL: string; // anthropic/claude-sonnet-5.5 (OpenRouter id)
   FAST_MODEL: string; // anthropic/claude-haiku-5.5
   DECIDE_MODEL: string; // typesafe/jev-1.14 (System One)
+  /** Which OpenRouter decision endpoint to post to: "systemone" (/v1/systemone, default) or "decisions" (/alpha/decisions). */
+  DECIDE_API?: "systemone" | "decisions";
   /** Overrides for local integration runs against mock servers. Unset in production. */
   SLACK_API_URL?: string; // default https://slack.com/api
   LLM_BASE_URL?: string; // default https://openrouter.ai/api (/v1/messages and /v1/systemone)

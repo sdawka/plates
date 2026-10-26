@@ -28,6 +28,8 @@ import {
 } from "./context";
 import { callClarify, callExtraction } from "./llm";
 import { buildClarifyPrompt, buildCorrectionPrompt, buildExtractPrompt } from "./prompt";
+import { buildIsAskQuestions, buildReactionQuestions } from "./questions";
+import { thresholdsFor } from "../thresholds";
 import {
   DEFAULT_REACTION_QUESTION,
   NO_ASK_REPLY,
@@ -140,17 +142,12 @@ function newRequestRow(
 
 // ---------- extract ----------
 
-/** Below this a DM to the bot is not an ask, so nothing is extracted. */
-const IS_ASK_MIN = 0.3;
 const NOT_AN_ASK_REPLY = "I track asks, like `remind me to send Dana the Q3 deck by Friday`. You can also ask me “what's on my plate?”, or say `help`.";
 
 /** Cheap filter before the extraction call: does the DM ask someone to do, deliver, decide or acknowledge something? */
 async function looksLikeAsk(env: Env, text: string): Promise<boolean> {
-  const { is_ask } = await decide(env, {
-    state: { untrusted_chat_message: text.slice(0, 2000) },
-    questions: { is_ask: { type: "noul", instructions: "The message asks someone to do, deliver, decide or acknowledge something." } },
-  });
-  return is_ask.noul >= IS_ASK_MIN;
+  const { is_ask } = await decide(env, buildIsAskQuestions(text));
+  return is_ask.noul >= thresholdsFor(env.DECIDE_MODEL).IS_ASK_MIN;
 }
 
 async function handleExtract(env: Env, job: Extract<ExtractJob, { kind: "extract" }>): Promise<Effect[]> {
@@ -407,35 +404,21 @@ async function handleCorrect(env: Env, job: Extract<ExtractJob, { kind: "correct
 
 // ---------- clarify_reaction ----------
 
-/** Below this probability an emoji is not taken as a yes or a no. */
-const REACTION_MIN = 0.8;
-
 /** Does an unrecognized emoji on a confirmation mean yes or no? Anything unsure (or a failed call) is "unclear". */
 async function readReaction(env: Env, req: RequestRow, job: Extract<ExtractJob, { kind: "clarify_reaction" }>): Promise<"yes" | "no" | "unclear"> {
   try {
-    const { meaning } = await decide(env, {
-      state: {
+    const { meaning } = await decide(
+      env,
+      buildReactionQuestions({
         emoji: job.reaction,
-        reacted_by: job.userId,
-        confirmation: {
-          requester: req.requester_id,
-          owner: req.owner_id,
-          asks: (JSON.parse(req.draft_json) as DraftAsk[]).map((a) => a.title),
-        },
-      },
-      questions: {
-        meaning: {
-          type: "choice",
-          instructions: "The person reacted to a confirmation ('is this who asked whom for what?') with this emoji. What do they mean?",
-          criteria: {
-            yes: "Approval: the summary is right.",
-            no: "Disapproval: the summary is wrong or something is off.",
-            unclear: "The emoji says nothing about whether the summary is right.",
-          },
-        },
-      },
-    });
-    return (meaning.choice === "yes" || meaning.choice === "no") && pMax(meaning) >= REACTION_MIN ? meaning.choice : "unclear";
+        reactedBy: job.userId,
+        requester: req.requester_id,
+        owner: req.owner_id,
+        askTitles: (JSON.parse(req.draft_json) as DraftAsk[]).map((a) => a.title),
+      }),
+    );
+    const min = thresholdsFor(env.DECIDE_MODEL).REACTION_MIN;
+    return (meaning.choice === "yes" || meaning.choice === "no") && pMax(meaning) >= min ? meaning.choice : "unclear";
   } catch (e) {
     console.error("clarify_reaction: decide failed", e);
     return "unclear";

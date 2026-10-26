@@ -63,7 +63,8 @@ Secrets are set with `wrangler secret put`; plain vars go under `vars` in `wrang
 | `OPENROUTER_API_KEY` | secret | One OpenRouter key for everything: Claude (Anthropic-compatible Messages endpoint) for extraction and clarifying questions, and System One (`/v1/systemone`) for thread-reply intent, emoji meaning and the DM filter. Without it nothing can be extracted. |
 | `EXTRACT_MODEL` | var | Model for extraction (default in `wrangler.jsonc`: `anthropic/claude-sonnet-5.5`). |
 | `FAST_MODEL` | var | Model for short clarifying questions (default: `anthropic/claude-haiku-5.5`). |
-| `DECIDE_MODEL` | var | System One model for the typed decisions (default: `typesafe/jev-1.14`). Uses the same `OPENROUTER_API_KEY`. |
+| `DECIDE_MODEL` | var | System One model for the typed decisions (default: `typesafe/jev-1.14`). Uses the same `OPENROUTER_API_KEY`. Thresholds are keyed by model in `src/thresholds.ts`; tune a new model with `npm run eval` first. |
+| `DECIDE_API` | var | Optional. `systemone` (default, `/v1/systemone`, TypeSafe-compatible) or `decisions` (`/alpha/decisions`, OpenRouter's own route that fronts every decision model, e.g. `cloudflare/clef-flash`). Same request and answer shape either way. |
 
 ### Optional: reading DMs (user-token OAuth)
 
@@ -87,7 +88,7 @@ Set `TRACKER` to `jira` or `linear`. Unset, tracker sync is off. The matching gr
 
 ### Testing only
 
-`SLACK_API_URL` (default `https://slack.com/api`) and `LLM_BASE_URL` (default `https://openrouter.ai/api`, used for both `/v1/messages` and `/v1/systemone`) point Plates at mock servers for local integration runs. Leave them unset in production.
+`SLACK_API_URL` (default `https://slack.com/api`) and `LLM_BASE_URL` (default `https://openrouter.ai/api`, used for `/v1/messages` and the decision route) point Plates at mock servers for local integration runs. Leave them unset in production.
 
 ## Checks
 
@@ -98,6 +99,12 @@ npm run local:e2e   # the real Worker in `wrangler dev --local` (D1, Queues, DO 
 ```
 
 `ONLY=a,c npm run local:e2e` runs a subset; `npm run local:mock` starts just the mock servers. `.dev.vars.example` lists every variable for running `wrangler dev` by hand.
+
+`npm run eval -- --model <vendor/model> [--api decisions]` runs the labelled cases in `eval/cases/` against a decision model and prints accuracy, confusions and threshold sweeps; results land in `eval/results/` (committed, so runs can be diffed with `--compare`). `--dry-run` validates the labels offline and `--oracle` checks the scoring pipeline. It needs `OPENROUTER_API_KEY` in the environment and refuses to run under `CI`.
+
+## Research
+
+`docs/clairic-spike.md` measures Cloudflare's Clairic extraction model against the date and thread cases (`npm run spike:clairic`, needs `CF_ACCOUNT_ID` and `CF_API_TOKEN`). Nothing in `src/` depends on it.
 
 ## Trying it in Slack
 

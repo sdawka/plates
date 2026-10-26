@@ -122,3 +122,25 @@ describe("upcomingDates", () => {
     expect(dates).toEqual(["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03"]);
   });
 });
+
+describe("DECIDE_API", () => {
+  it("posts the same body to /alpha/decisions when set to decisions", async () => {
+    fake.queueNoul("rain", 0.7);
+    const a = await decide({ ...env, DECIDE_API: "decisions", DECIDE_MODEL: "cloudflare/clef-flash" }, { state: "s", questions: { rain: yesNo } });
+    expect(a.rain.noul).toBe(0.7);
+    expect(fake.requests.map((r) => r.path)).toEqual(["/alpha/decisions"]);
+    expect(fake.requests[0]!.body).toEqual({ model: "cloudflare/clef-flash", state: "s", questions: { rain: yesNo } });
+  });
+
+  it("defaults to /v1/systemone", async () => {
+    fake.queueNoul("rain", 0.7);
+    await decide(env, { state: "s", questions: { rain: yesNo } });
+    expect(fake.requests.map((r) => r.path)).toEqual(["/v1/systemone"]);
+  });
+
+  it("rejects an unknown value permanently, without a request", async () => {
+    const err = await decide({ ...env, DECIDE_API: "nope" as never }, { state: "s", questions: { rain: yesNo } }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LlmPermanentError);
+    expect(fake.requests).toHaveLength(0);
+  });
+});

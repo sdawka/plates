@@ -1,0 +1,3335 @@
+{
+ "meta": {
+  "model": "cloudflare/clef-flash",
+  "api": "decisions",
+  "git_sha": "207d6ee",
+  "ran_at": "2026-10-26T22:44:35.843Z",
+  "cases_sha256": {
+   "intent": "6ef56aa410b9",
+   "is_ask": "e9c5602ebaa8",
+   "reaction": "9f204cf54540",
+   "extract": "e553b092c733"
+  },
+  "thresholds_used": {
+   "AUTO_P": 0.85,
+   "PROPOSE_P": 0.5,
+   "AMBIGUOUS_P": 0.2,
+   "DELIVERS_P": 0.6,
+   "DEADLINE_P": 0.5,
+   "IS_ASK_MIN": 0.3,
+   "REACTION_MIN": 0.8
+  }
+ },
+ "records": [
+  {
+   "id": "intent-ack-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:ack",
+     "confidence": 0.1885,
+     "probabilities": {
+      "A1:ack": 0.4098,
+      "A1:accept_later": 0.3451,
+      "A1:redirect": 0.0929,
+      "none": 0.0654,
+      "A1:send_back": 0.0643
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-21",
+     "confidence": 0.7297,
+     "probabilities": {
+      "2026-10-21": 0.8604,
+      "2026-10-28": 0.0229,
+      "2026-11-04": 0.0215,
+      "2026-10-22": 0.0153,
+      "2026-10-23": 0.0099
+     }
+    }
+   },
+   "ms": 385
+  },
+  {
+   "id": "intent-ack-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:ack",
+     "confidence": 0.6593,
+     "probabilities": {
+      "A1:ack": 0.8346,
+      "A1:accept_now": 0.0887,
+      "A1:accept_later": 0.0586,
+      "A1:redirect": 0.0074,
+      "none": 0.0049
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.6276,
+     "probabilities": {
+      "none": 0.8007,
+      "2026-10-20": 0.0372,
+      "2026-10-19": 0.0294,
+      "2026-10-21": 0.0229,
+      "2026-10-22": 0.0132
+     }
+    }
+   },
+   "ms": 423
+  },
+  {
+   "id": "intent-ack-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:ack",
+     "confidence": 0.6571,
+     "probabilities": {
+      "A1:ack": 0.7061,
+      "A1:accept_now": 0.1856,
+      "A1:accept_later": 0.0744,
+      "none": 0.0103,
+      "A1:reject": 0.0102
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8138,
+     "probabilities": {
+      "none": 0.8223,
+      "2026-10-19": 0.0373,
+      "2026-10-20": 0.0148,
+      "2026-10-21": 0.0097,
+      "2026-10-26": 0.0071
+     }
+    }
+   },
+   "ms": 196
+  },
+  {
+   "id": "intent-ack-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:ack",
+     "confidence": 0.4989,
+     "probabilities": {
+      "A1:ack": 0.7324,
+      "A1:accept_later": 0.1788,
+      "A1:redirect": 0.0302,
+      "none": 0.0251,
+      "A1:accept_now": 0.0243
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.185,
+     "probabilities": {
+      "none": 0.2891,
+      "2026-10-19": 0.2622,
+      "2026-10-20": 0.2493,
+      "2026-10-21": 0.0794,
+      "2026-10-22": 0.0262
+     }
+    }
+   },
+   "ms": 335
+  },
+  {
+   "id": "intent-close-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:close",
+     "confidence": 0.7335,
+     "probabilities": {
+      "A1:close": 0.8851,
+      "A1:withdraw": 0.0362,
+      "none": 0.0296,
+      "A1:redirect": 0.0253,
+      "A1:put_back": 0.0238
+     }
+    }
+   },
+   "ms": 317
+  },
+  {
+   "id": "intent-close-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:close",
+     "confidence": 0.4904,
+     "probabilities": {
+      "A1:close": 0.7438,
+      "none": 0.1941,
+      "A1:withdraw": 0.0274,
+      "A1:put_back": 0.0226,
+      "A1:redirect": 0.0121
+     }
+    }
+   },
+   "ms": 500
+  },
+  {
+   "id": "intent-close-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:close",
+     "confidence": 0.8726,
+     "probabilities": {
+      "A1:close": 0.8981,
+      "A1:withdraw": 0.0365,
+      "A1:redirect": 0.0225,
+      "none": 0.0218,
+      "A1:put_back": 0.0211
+     }
+    }
+   },
+   "ms": 186
+  },
+  {
+   "id": "intent-deadline-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:set_deadline",
+     "confidence": 0.7625,
+     "probabilities": {
+      "A1:set_deadline": 0.891,
+      "none": 0.0379,
+      "A1:send_back": 0.022,
+      "A1:reject": 0.0135,
+      "A1:accept_now": 0.0127
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.2955,
+     "probabilities": {
+      "none": 0.5632,
+      "2026-10-26": 0.0471,
+      "2026-10-27": 0.03,
+      "2026-10-25": 0.029,
+      "2026-10-21": 0.0264
+     }
+    }
+   },
+   "ms": 319
+  },
+  {
+   "id": "intent-deadline-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:set_deadline",
+     "confidence": 0.8733,
+     "probabilities": {
+      "A1:set_deadline": 0.8914,
+      "none": 0.0417,
+      "A1:send_back": 0.0305,
+      "A1:reject": 0.0135,
+      "A1:accept_now": 0.0097
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-20",
+     "confidence": 0.3364,
+     "probabilities": {
+      "2026-10-20": 0.3666,
+      "2026-10-27": 0.2923,
+      "2026-10-21": 0.1627,
+      "2026-10-26": 0.0739,
+      "none": 0.022
+     }
+    }
+   },
+   "ms": 199
+  },
+  {
+   "id": "intent-deadline-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:set_deadline",
+     "confidence": 0.5496,
+     "probabilities": {
+      "A1:set_deadline": 0.7681,
+      "none": 0.1478,
+      "A1:reject": 0.0389,
+      "A1:send_back": 0.0199,
+      "A1:accept_now": 0.0121
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-28",
+     "confidence": 0.0848,
+     "probabilities": {
+      "2026-10-28": 0.2645,
+      "2026-10-26": 0.1576,
+      "2026-11-04": 0.1208,
+      "2026-11-03": 0.0584,
+      "2026-10-27": 0.0545
+     }
+    }
+   },
+   "ms": 534
+  },
+  {
+   "id": "intent-deadline-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:set_deadline",
+     "confidence": 0.838,
+     "probabilities": {
+      "A1:set_deadline": 0.9275,
+      "A1:send_back": 0.016,
+      "A1:reject": 0.0155,
+      "none": 0.0141,
+      "A1:accept_now": 0.0094
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-30",
+     "confidence": 0.836,
+     "probabilities": {
+      "2026-10-30": 0.9182,
+      "2026-10-29": 0.0078,
+      "2026-10-31": 0.0055,
+      "2026-10-24": 0.0053,
+      "2026-10-28": 0.0053
+     }
+    }
+   },
+   "ms": 2212
+  },
+  {
+   "id": "intent-done-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.8656,
+     "probabilities": {
+      "A1:done": 0.888,
+      "none": 0.0371,
+      "A1:redirect": 0.0359,
+      "A1:set_deadline": 0.0181,
+      "A1:reject": 0.011
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8055,
+     "probabilities": {
+      "none": 0.8143,
+      "2026-10-19": 0.065,
+      "2026-10-20": 0.0136,
+      "2026-10-21": 0.0083,
+      "2026-10-22": 0.0059
+     }
+    }
+   },
+   "ms": 217
+  },
+  {
+   "id": "intent-done-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.8673,
+     "probabilities": {
+      "A1:done": 0.8894,
+      "A1:redirect": 0.0639,
+      "none": 0.014,
+      "A1:set_deadline": 0.0136,
+      "A1:reject": 0.0097
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5864,
+     "probabilities": {
+      "none": 0.6052,
+      "2026-10-19": 0.0643,
+      "2026-10-20": 0.0463,
+      "2026-10-21": 0.0256,
+      "2026-10-22": 0.0165
+     }
+    }
+   },
+   "ms": 207
+  },
+  {
+   "id": "intent-done-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.8938,
+     "probabilities": {
+      "A1:done": 0.9115,
+      "none": 0.0295,
+      "A1:set_deadline": 0.0234,
+      "A1:redirect": 0.0144,
+      "A1:send_back": 0.0119
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7807,
+     "probabilities": {
+      "none": 0.7907,
+      "2026-10-20": 0.0252,
+      "2026-10-21": 0.0205,
+      "2026-10-19": 0.0178,
+      "2026-10-22": 0.0119
+     }
+    }
+   },
+   "ms": 280
+  },
+  {
+   "id": "intent-done-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.7465,
+     "probabilities": {
+      "A1:done": 0.8858,
+      "A1:redirect": 0.058,
+      "A1:set_deadline": 0.0171,
+      "A1:send_back": 0.0147,
+      "A1:reject": 0.0138
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3306,
+     "probabilities": {
+      "none": 0.594,
+      "2026-10-19": 0.0347,
+      "2026-10-20": 0.0258,
+      "2026-10-21": 0.0214,
+      "2026-11-01": 0.0214
+     }
+    },
+    "delivers_A1": {
+     "type": "noul",
+     "noul": 0.9598
+    }
+   },
+   "ms": 416
+  },
+  {
+   "id": "intent-done-005",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.8239,
+     "probabilities": {
+      "A1:done": 0.923,
+      "A1:redirect": 0.0274,
+      "A1:set_deadline": 0.0147,
+      "A1:reject": 0.013,
+      "A1:send_back": 0.0122
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.1765,
+     "probabilities": {
+      "none": 0.4375,
+      "2026-10-19": 0.1106,
+      "2026-10-20": 0.0298,
+      "2026-10-21": 0.028,
+      "2026-11-01": 0.0271
+     }
+    }
+   },
+   "ms": 378
+  },
+  {
+   "id": "intent-done-006",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.7267,
+     "probabilities": {
+      "A1:done": 0.8731,
+      "A1:redirect": 0.0349,
+      "A1:accept_now": 0.0339,
+      "A1:accept_later": 0.0256,
+      "A1:reject": 0.0117
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3609,
+     "probabilities": {
+      "none": 0.6188,
+      "2026-10-19": 0.027,
+      "2026-10-20": 0.0224,
+      "2026-11-01": 0.0197,
+      "2026-10-21": 0.0191
+     }
+    },
+    "delivers_A1": {
+     "type": "noul",
+     "noul": 0.9504
+    }
+   },
+   "ms": 377
+  },
+  {
+   "id": "intent-done-007",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.4175,
+     "probabilities": {
+      "A1:done": 0.6929,
+      "none": 0.0888,
+      "A1:accept_later": 0.0821,
+      "A1:accept_now": 0.0625,
+      "A1:redirect": 0.0379
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4335,
+     "probabilities": {
+      "none": 0.6665,
+      "2026-10-20": 0.0934,
+      "2026-10-21": 0.0536,
+      "2026-10-19": 0.0441,
+      "2026-10-22": 0.0268
+     }
+    },
+    "delivers_A1": {
+     "type": "noul",
+     "noul": 0.8193
+    }
+   },
+   "ms": 360
+  },
+  {
+   "id": "intent-done-008",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.68,
+     "probabilities": {
+      "none": 0.849,
+      "A1:send_back": 0.0522,
+      "A1:done": 0.0265,
+      "A1:redirect": 0.026,
+      "A1:accept_later": 0.0188
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8324,
+     "probabilities": {
+      "none": 0.9163,
+      "2026-10-19": 0.0057,
+      "2026-10-20": 0.0055,
+      "2026-10-26": 0.0048,
+      "2026-10-30": 0.0043
+     }
+    },
+    "delivers_A1": {
+     "type": "noul",
+     "noul": 0.0252
+    }
+   },
+   "ms": 248
+  },
+  {
+   "id": "intent-done-009",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.7318,
+     "probabilities": {
+      "A1:done": 0.8784,
+      "A1:redirect": 0.0641,
+      "A1:set_deadline": 0.0162,
+      "A1:send_back": 0.0152,
+      "none": 0.0134
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.2792,
+     "probabilities": {
+      "none": 0.5494,
+      "2026-10-19": 0.0407,
+      "2026-10-20": 0.0263,
+      "2026-11-01": 0.0232,
+      "2026-10-21": 0.0225
+     }
+    },
+    "delivers_A1": {
+     "type": "noul",
+     "noul": 0.955
+    }
+   },
+   "ms": 350
+  },
+  {
+   "id": "intent-later-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.9104,
+     "probabilities": {
+      "A1:accept_later": 0.9232,
+      "none": 0.0194,
+      "A1:accept_now": 0.0156,
+      "A1:send_back": 0.0121,
+      "A1:done": 0.0104
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-22",
+     "confidence": 0.874,
+     "probabilities": {
+      "2026-10-22": 0.8797,
+      "2026-10-23": 0.0101,
+      "2026-10-29": 0.0095,
+      "2026-11-05": 0.0095,
+      "2026-10-21": 0.0084
+     }
+    }
+   },
+   "ms": 260
+  },
+  {
+   "id": "intent-later-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.2051,
+     "probabilities": {
+      "A1:accept_later": 0.5049,
+      "A1:done": 0.1759,
+      "none": 0.1419,
+      "A1:accept_now": 0.1018,
+      "A1:send_back": 0.0399
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-20",
+     "confidence": 0.898,
+     "probabilities": {
+      "2026-10-20": 0.9499,
+      "none": 0.0116,
+      "2026-10-21": 0.0052,
+      "2026-10-19": 0.0048,
+      "2026-10-22": 0.0028
+     }
+    }
+   },
+   "ms": 321
+  },
+  {
+   "id": "intent-later-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.5185,
+     "probabilities": {
+      "A1:accept_later": 0.7546,
+      "none": 0.1208,
+      "A1:reject": 0.0355,
+      "A1:accept_now": 0.0293,
+      "A1:send_back": 0.0247
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-23",
+     "confidence": 0.0673,
+     "probabilities": {
+      "2026-10-23": 0.1876,
+      "2026-10-26": 0.1801,
+      "none": 0.1694,
+      "2026-10-24": 0.0465,
+      "2026-10-30": 0.0352
+     }
+    }
+   },
+   "ms": 1142
+  },
+  {
+   "id": "intent-later-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.7669,
+     "probabilities": {
+      "A1:accept_later": 0.8002,
+      "A1:accept_now": 0.0571,
+      "A1:done": 0.0571,
+      "none": 0.0305,
+      "A1:send_back": 0.0203
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-23",
+     "confidence": 0.8206,
+     "probabilities": {
+      "2026-10-23": 0.8288,
+      "2026-10-30": 0.0385,
+      "2026-11-06": 0.0176,
+      "2026-10-22": 0.0094,
+      "2026-10-21": 0.0073
+     }
+    }
+   },
+   "ms": 1198
+  },
+  {
+   "id": "intent-later-005",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.711,
+     "probabilities": {
+      "A1:accept_later": 0.8637,
+      "A1:done": 0.0656,
+      "A1:accept_now": 0.0417,
+      "none": 0.0125,
+      "A1:send_back": 0.0062
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-19",
+     "confidence": 0.4502,
+     "probabilities": {
+      "2026-10-19": 0.6691,
+      "2026-10-20": 0.1571,
+      "none": 0.0376,
+      "2026-10-23": 0.0243,
+      "2026-10-30": 0.0143
+     }
+    }
+   },
+   "ms": 415
+  },
+  {
+   "id": "intent-later-006",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.6915,
+     "probabilities": {
+      "A1:accept_later": 0.8556,
+      "A1:accept_now": 0.0302,
+      "none": 0.0268,
+      "A1:done": 0.0263,
+      "A1:reject": 0.0218
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-11-06",
+     "confidence": 0.2284,
+     "probabilities": {
+      "2026-11-06": 0.3702,
+      "2026-10-30": 0.3183,
+      "2026-10-23": 0.154,
+      "2026-10-31": 0.0162,
+      "2026-10-29": 0.0106
+     }
+    }
+   },
+   "ms": 588
+  },
+  {
+   "id": "intent-later-007",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.9266,
+     "probabilities": {
+      "A1:accept_later": 0.9371,
+      "none": 0.0183,
+      "A1:reject": 0.0138,
+      "A1:send_back": 0.0102,
+      "A1:accept_now": 0.0093
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-11-01",
+     "confidence": 0.11,
+     "probabilities": {
+      "2026-11-01": 0.1505,
+      "2026-11-07": 0.1349,
+      "none": 0.101,
+      "2026-11-08": 0.0864,
+      "2026-11-06": 0.0799
+     }
+    }
+   },
+   "ms": 231
+  },
+  {
+   "id": "intent-later-008",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3977,
+     "probabilities": {
+      "none": 0.4837,
+      "A1:accept_later": 0.4074,
+      "A1:send_back": 0.0406,
+      "A1:reject": 0.0282,
+      "A1:accept_now": 0.0176
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-31",
+     "confidence": 0.6175,
+     "probabilities": {
+      "2026-10-31": 0.6349,
+      "2026-10-30": 0.1784,
+      "2026-11-01": 0.0375,
+      "none": 0.0252,
+      "2026-10-29": 0.0231
+     }
+    }
+   },
+   "ms": 230
+  },
+  {
+   "id": "intent-later-009",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.6926,
+     "probabilities": {
+      "A1:accept_later": 0.8559,
+      "none": 0.0388,
+      "A1:accept_now": 0.0332,
+      "A1:done": 0.0225,
+      "A1:send_back": 0.0211
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-26",
+     "confidence": 0.432,
+     "probabilities": {
+      "2026-10-26": 0.6528,
+      "2026-10-20": 0.1677,
+      "2026-10-21": 0.0408,
+      "2026-11-02": 0.0349,
+      "2026-10-23": 0.0101
+     }
+    }
+   },
+   "ms": 319
+  },
+  {
+   "id": "intent-later-010",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.5719,
+     "probabilities": {
+      "A1:accept_later": 0.7869,
+      "none": 0.1065,
+      "A1:send_back": 0.031,
+      "A1:accept_now": 0.0287,
+      "A1:done": 0.0202
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-26",
+     "confidence": 0.1945,
+     "probabilities": {
+      "2026-10-26": 0.4578,
+      "none": 0.0881,
+      "2026-11-06": 0.0534,
+      "2026-10-27": 0.0514,
+      "2026-11-02": 0.0385
+     }
+    }
+   },
+   "ms": 425
+  },
+  {
+   "id": "intent-later-011",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.7132,
+     "probabilities": {
+      "A1:accept_later": 0.7542,
+      "A1:accept_now": 0.1241,
+      "none": 0.0475,
+      "A1:done": 0.0453,
+      "A1:redirect": 0.0107
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8773,
+     "probabilities": {
+      "none": 0.8829,
+      "2026-10-20": 0.0176,
+      "2026-10-21": 0.0142,
+      "2026-10-19": 0.0116,
+      "2026-10-22": 0.0076
+     }
+    }
+   },
+   "ms": 271
+  },
+  {
+   "id": "intent-later-012",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.8528,
+     "probabilities": {
+      "A1:accept_later": 0.9342,
+      "none": 0.0284,
+      "A1:send_back": 0.0091,
+      "A1:accept_now": 0.0083,
+      "A1:reject": 0.0081
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-21",
+     "confidence": 0.6962,
+     "probabilities": {
+      "2026-10-21": 0.8411,
+      "2026-11-04": 0.0319,
+      "2026-10-28": 0.0297,
+      "2026-11-02": 0.0106,
+      "2026-10-22": 0.0104
+     }
+    }
+   },
+   "ms": 1257
+  },
+  {
+   "id": "intent-later-013",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.7147,
+     "probabilities": {
+      "A1:accept_later": 0.8673,
+      "none": 0.0326,
+      "A1:accept_now": 0.0316,
+      "A1:done": 0.0189,
+      "A1:send_back": 0.0183
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-28",
+     "confidence": 0.8086,
+     "probabilities": {
+      "2026-10-28": 0.9035,
+      "2026-10-26": 0.0233,
+      "2026-10-27": 0.0129,
+      "2026-10-23": 0.0047,
+      "2026-10-25": 0.0047
+     }
+    }
+   },
+   "ms": 263
+  },
+  {
+   "id": "intent-later-014",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.6879,
+     "probabilities": {
+      "A1:accept_later": 0.8535,
+      "none": 0.0366,
+      "A1:send_back": 0.0366,
+      "A1:reject": 0.0233,
+      "A1:accept_now": 0.0229
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-23",
+     "confidence": 0.8093,
+     "probabilities": {
+      "2026-10-23": 0.9036,
+      "2026-10-22": 0.0359,
+      "2026-10-21": 0.0041,
+      "2026-10-24": 0.0037,
+      "2026-10-19": 0.0034
+     }
+    }
+   },
+   "ms": 362
+  },
+  {
+   "id": "intent-later-015",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.5956,
+     "probabilities": {
+      "A1:accept_later": 0.8016,
+      "none": 0.0888,
+      "A1:send_back": 0.0378,
+      "A1:reject": 0.0251,
+      "A1:accept_now": 0.0209
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.0718,
+     "probabilities": {
+      "none": 0.2194,
+      "2026-11-01": 0.1881,
+      "2026-11-02": 0.0809,
+      "2026-11-06": 0.068,
+      "2026-11-04": 0.0654
+     }
+    }
+   },
+   "ms": 795
+  },
+  {
+   "id": "intent-multi-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_now",
+     "confidence": 0.1126,
+     "probabilities": {
+      "A1:accept_now": 0.2742,
+      "A1:accept_later": 0.2169,
+      "A2:accept_later": 0.1689,
+      "A2:accept_now": 0.1389,
+      "none": 0.0904
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.786
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.718,
+     "probabilities": {
+      "none": 0.8531,
+      "2026-10-19": 0.0381,
+      "2026-10-20": 0.0355,
+      "2026-10-21": 0.0113,
+      "2026-10-22": 0.007
+     }
+    }
+   },
+   "ms": 221
+  },
+  {
+   "id": "intent-multi-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.0769,
+     "probabilities": {
+      "none": 0.2807,
+      "A1:accept_later": 0.1453,
+      "A1:send_back": 0.145,
+      "A1:accept_now": 0.1155,
+      "A1:done": 0.0747
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.3237
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5991,
+     "probabilities": {
+      "none": 0.7834,
+      "2026-10-19": 0.0326,
+      "2026-10-20": 0.0316,
+      "2026-10-21": 0.0226,
+      "2026-10-26": 0.0144
+     }
+    }
+   },
+   "ms": 1649
+  },
+  {
+   "id": "intent-multi-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A2:accept_now",
+     "confidence": 0.7751,
+     "probabilities": {
+      "A2:accept_now": 0.8887,
+      "A2:accept_later": 0.0471,
+      "none": 0.0079,
+      "A1:accept_later": 0.0077,
+      "A2:redirect": 0.0071
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.108
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.6392,
+     "probabilities": {
+      "none": 0.8082,
+      "2026-10-19": 0.0269,
+      "2026-10-20": 0.023,
+      "2026-10-21": 0.0144,
+      "2026-10-22": 0.0116
+     }
+    }
+   },
+   "ms": 339
+  },
+  {
+   "id": "intent-multi-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.2611,
+     "probabilities": {
+      "none": 0.3179,
+      "A1:accept_later": 0.1749,
+      "A2:accept_later": 0.1688,
+      "A1:accept_now": 0.132,
+      "A2:accept_now": 0.0879
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.8693
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7941,
+     "probabilities": {
+      "none": 0.8035,
+      "2026-10-20": 0.0578,
+      "2026-10-19": 0.0324,
+      "2026-10-21": 0.0314,
+      "2026-10-22": 0.0134
+     }
+    }
+   },
+   "ms": 269
+  },
+  {
+   "id": "intent-multi-005",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A3:ack",
+     "confidence": 0.776,
+     "probabilities": {
+      "A3:ack": 0.7878,
+      "A2:accept_later": 0.0847,
+      "A3:accept_now": 0.0545,
+      "A3:accept_later": 0.0253,
+      "A1:accept_later": 0.0116
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.1725
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.1961,
+     "probabilities": {
+      "none": 0.2326,
+      "2026-10-23": 0.1378,
+      "2026-10-21": 0.1001,
+      "2026-10-22": 0.06,
+      "2026-10-24": 0.0509
+     }
+    }
+   },
+   "ms": 257
+  },
+  {
+   "id": "intent-multi-006",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:reject",
+     "confidence": 0.3696,
+     "probabilities": {
+      "A1:reject": 0.5069,
+      "A2:reject": 0.3986,
+      "none": 0.0438,
+      "A1:redirect": 0.0086,
+      "A2:redirect": 0.0085
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.7697
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3293,
+     "probabilities": {
+      "none": 0.5923,
+      "2026-11-02": 0.0356,
+      "2026-11-01": 0.0304,
+      "2026-10-26": 0.0296,
+      "2026-10-19": 0.0271
+     }
+    }
+   },
+   "ms": 811
+  },
+  {
+   "id": "intent-multi-007",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A2:done",
+     "confidence": 0.7563,
+     "probabilities": {
+      "A2:done": 0.8794,
+      "A2:accept_now": 0.029,
+      "A2:accept_later": 0.015,
+      "A2:redirect": 0.0098,
+      "A2:reject": 0.0086
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.0678
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.2399,
+     "probabilities": {
+      "none": 0.5107,
+      "2026-10-19": 0.0673,
+      "2026-10-20": 0.0295,
+      "2026-10-29": 0.0234,
+      "2026-10-21": 0.023
+     }
+    }
+   },
+   "ms": 536
+  },
+  {
+   "id": "intent-multi-008",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:close",
+     "confidence": 0.8656,
+     "probabilities": {
+      "A1:close": 0.9403,
+      "none": 0.0191,
+      "A2:withdraw": 0.0129,
+      "A1:put_back": 0.0099,
+      "A1:withdraw": 0.0099
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.2705
+    }
+   },
+   "ms": 780
+  },
+  {
+   "id": "intent-multi-009",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A2:accept_now",
+     "confidence": 0.3182,
+     "probabilities": {
+      "A2:accept_now": 0.5384,
+      "A1:accept_later": 0.2655,
+      "A2:done": 0.0886,
+      "A2:accept_later": 0.0428,
+      "A1:accept_now": 0.0153
+     }
+    },
+    "ambiguous": {
+     "type": "noul",
+     "noul": 0.2628
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-22",
+     "confidence": 0.3435,
+     "probabilities": {
+      "2026-10-22": 0.5287,
+      "2026-10-21": 0.3012,
+      "2026-10-20": 0.0386,
+      "2026-10-29": 0.0242,
+      "2026-10-19": 0.0229
+     }
+    }
+   },
+   "ms": 234
+  },
+  {
+   "id": "intent-none-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9046,
+     "probabilities": {
+      "none": 0.9182,
+      "A1:accept_later": 0.0307,
+      "A1:reject": 0.0189,
+      "A1:accept_now": 0.0092,
+      "A1:send_back": 0.0081
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.6983,
+     "probabilities": {
+      "none": 0.712,
+      "2026-10-20": 0.0246,
+      "2026-10-21": 0.0213,
+      "2026-10-19": 0.0191,
+      "2026-10-26": 0.0174
+     }
+    }
+   },
+   "ms": 270
+  },
+  {
+   "id": "intent-none-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9403,
+     "probabilities": {
+      "none": 0.9488,
+      "A1:reject": 0.0161,
+      "A1:send_back": 0.0078,
+      "A1:accept_later": 0.0076,
+      "A1:redirect": 0.0069
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4608,
+     "probabilities": {
+      "none": 0.4853,
+      "2026-11-07": 0.0296,
+      "2026-10-19": 0.0278,
+      "2026-10-20": 0.0278,
+      "2026-10-27": 0.027
+     }
+    }
+   },
+   "ms": 226
+  },
+  {
+   "id": "intent-none-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8444,
+     "probabilities": {
+      "none": 0.8963,
+      "A1:withdraw": 0.0551,
+      "A1:redirect": 0.0486
+     }
+    }
+   },
+   "ms": 239
+  },
+  {
+   "id": "intent-none-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5982,
+     "probabilities": {
+      "none": 0.6556,
+      "A1:send_back": 0.1785,
+      "A1:accept_later": 0.1157,
+      "A1:accept_now": 0.02,
+      "A1:reject": 0.0145
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8534,
+     "probabilities": {
+      "none": 0.8601,
+      "2026-10-21": 0.0344,
+      "2026-10-20": 0.0227,
+      "2026-10-22": 0.016,
+      "2026-10-26": 0.0079
+     }
+    }
+   },
+   "ms": 210
+  },
+  {
+   "id": "intent-none-005",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:done",
+     "confidence": 0.7143,
+     "probabilities": {
+      "A1:done": 0.7551,
+      "A1:reject": 0.0998,
+      "A1:accept_later": 0.0487,
+      "A1:accept_now": 0.0416,
+      "none": 0.0269
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5884,
+     "probabilities": {
+      "none": 0.6071,
+      "2026-10-19": 0.1114,
+      "2026-10-20": 0.0216,
+      "2026-10-31": 0.0158,
+      "2026-10-21": 0.0153
+     }
+    }
+   },
+   "ms": 247
+  },
+  {
+   "id": "intent-none-006",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7509,
+     "probabilities": {
+      "none": 0.885,
+      "A1:done": 0.0437,
+      "A1:accept_later": 0.0291,
+      "A1:accept_now": 0.0161,
+      "A1:redirect": 0.0123
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.6594,
+     "probabilities": {
+      "none": 0.8183,
+      "2026-10-19": 0.0682,
+      "2026-10-20": 0.0089,
+      "2026-10-21": 0.0087,
+      "2026-10-22": 0.0071
+     }
+    }
+   },
+   "ms": 387
+  },
+  {
+   "id": "intent-none-007",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8938,
+     "probabilities": {
+      "none": 0.9532,
+      "A1:redirect": 0.0091,
+      "A1:accept_later": 0.0088,
+      "A1:send_back": 0.008,
+      "A1:done": 0.0075
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3152,
+     "probabilities": {
+      "none": 0.5809,
+      "2026-10-20": 0.038,
+      "2026-10-19": 0.0274,
+      "2026-10-21": 0.0274,
+      "2026-11-07": 0.0213
+     }
+    }
+   },
+   "ms": 317
+  },
+  {
+   "id": "intent-none-008",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.843,
+     "probabilities": {
+      "none": 0.9454,
+      "A1:redirect": 0.0324,
+      "A1:withdraw": 0.0222
+     }
+    }
+   },
+   "ms": 371
+  },
+  {
+   "id": "intent-none-009",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9232,
+     "probabilities": {
+      "none": 0.9386,
+      "A1:close": 0.0281,
+      "A1:put_back": 0.0129,
+      "A1:withdraw": 0.0117,
+      "A1:redirect": 0.0087
+     }
+    }
+   },
+   "ms": 238
+  },
+  {
+   "id": "intent-none-010",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9383,
+     "probabilities": {
+      "none": 0.9471,
+      "A1:accept_later": 0.0154,
+      "A1:send_back": 0.0108,
+      "A1:redirect": 0.007,
+      "A1:reject": 0.0067
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5881,
+     "probabilities": {
+      "none": 0.6068,
+      "2026-10-20": 0.1109,
+      "2026-10-19": 0.0884,
+      "2026-10-21": 0.0473,
+      "2026-10-22": 0.0231
+     }
+    }
+   },
+   "ms": 184
+  },
+  {
+   "id": "intent-none-011",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9383,
+     "probabilities": {
+      "none": 0.9471,
+      "A1:reject": 0.0115,
+      "A1:accept_later": 0.0104,
+      "A1:send_back": 0.0079,
+      "A1:redirect": 0.0079
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4803,
+     "probabilities": {
+      "none": 0.5039,
+      "2026-11-07": 0.0289,
+      "2026-10-19": 0.0271,
+      "2026-10-20": 0.0271,
+      "2026-10-27": 0.0263
+     }
+    }
+   },
+   "ms": 210
+  },
+  {
+   "id": "intent-none-012",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.668,
+     "probabilities": {
+      "none": 0.8763,
+      "A1:redirect": 0.1014,
+      "A1:withdraw": 0.0223
+     }
+    }
+   },
+   "ms": 379
+  },
+  {
+   "id": "intent-now-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_now",
+     "confidence": 0.3942,
+     "probabilities": {
+      "A1:accept_now": 0.6363,
+      "A1:accept_later": 0.2707,
+      "A1:done": 0.043,
+      "none": 0.0238,
+      "A1:send_back": 0.0104
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5276,
+     "probabilities": {
+      "none": 0.738,
+      "2026-10-20": 0.0349,
+      "2026-10-19": 0.0275,
+      "2026-10-21": 0.0237,
+      "2026-10-22": 0.0156
+     }
+    }
+   },
+   "ms": 1023
+  },
+  {
+   "id": "intent-now-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_now",
+     "confidence": 0.8811,
+     "probabilities": {
+      "A1:accept_now": 0.8981,
+      "A1:accept_later": 0.0626,
+      "A1:reject": 0.0089,
+      "A1:done": 0.0086,
+      "A1:redirect": 0.0078
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3571,
+     "probabilities": {
+      "none": 0.3863,
+      "2026-10-20": 0.0495,
+      "2026-10-19": 0.043,
+      "2026-10-21": 0.0368,
+      "2026-10-22": 0.0315
+     }
+    }
+   },
+   "ms": 318
+  },
+  {
+   "id": "intent-now-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_now",
+     "confidence": 0.8096,
+     "probabilities": {
+      "A1:accept_now": 0.9132,
+      "A1:accept_later": 0.0509,
+      "none": 0.0086,
+      "A1:done": 0.0081,
+      "A1:reject": 0.0069
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.0874,
+     "probabilities": {
+      "none": 0.3208,
+      "2026-10-19": 0.0898,
+      "2026-10-20": 0.0496,
+      "2026-10-21": 0.0357,
+      "2026-10-22": 0.033
+     }
+    }
+   },
+   "ms": 487
+  },
+  {
+   "id": "intent-now-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_now",
+     "confidence": 0.5304,
+     "probabilities": {
+      "A1:accept_now": 0.7615,
+      "A1:accept_later": 0.1039,
+      "A1:done": 0.0681,
+      "none": 0.0447,
+      "A1:send_back": 0.0079
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "2026-10-19",
+     "confidence": 0.4946,
+     "probabilities": {
+      "2026-10-19": 0.6898,
+      "none": 0.2023,
+      "2026-10-20": 0.0167,
+      "2026-10-21": 0.0074,
+      "2026-10-22": 0.0062
+     }
+    }
+   },
+   "ms": 872
+  },
+  {
+   "id": "intent-now-005",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.2249,
+     "probabilities": {
+      "A1:accept_later": 0.3356,
+      "A1:accept_now": 0.3092,
+      "none": 0.1905,
+      "A1:done": 0.0992,
+      "A1:redirect": 0.0236
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8362,
+     "probabilities": {
+      "none": 0.8436,
+      "2026-10-20": 0.0317,
+      "2026-10-21": 0.0213,
+      "2026-10-19": 0.0208,
+      "2026-10-22": 0.0085
+     }
+    }
+   },
+   "ms": 199
+  },
+  {
+   "id": "intent-now-006",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4821,
+     "probabilities": {
+      "none": 0.5561,
+      "A1:send_back": 0.1423,
+      "A1:reject": 0.1411,
+      "A1:accept_later": 0.1255,
+      "A1:accept_now": 0.0143
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.8701,
+     "probabilities": {
+      "none": 0.876,
+      "2026-10-21": 0.0178,
+      "2026-10-20": 0.0104,
+      "2026-10-22": 0.0094,
+      "2026-10-26": 0.0083
+     }
+    }
+   },
+   "ms": 202
+  },
+  {
+   "id": "intent-now-007",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:accept_later",
+     "confidence": 0.3437,
+     "probabilities": {
+      "A1:accept_later": 0.6301,
+      "A1:accept_now": 0.1451,
+      "none": 0.126,
+      "A1:send_back": 0.0478,
+      "A1:reject": 0.0329
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.5534,
+     "probabilities": {
+      "none": 0.7524,
+      "2026-10-20": 0.0534,
+      "2026-10-21": 0.0534,
+      "2026-10-22": 0.0315,
+      "2026-10-26": 0.0129
+     }
+    }
+   },
+   "ms": 316
+  },
+  {
+   "id": "intent-putback-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:put_back",
+     "confidence": 0.9284,
+     "probabilities": {
+      "A1:put_back": 0.9427,
+      "none": 0.0212,
+      "A1:close": 0.0155,
+      "A1:withdraw": 0.0113,
+      "A1:redirect": 0.0094
+     }
+    }
+   },
+   "ms": 181
+  },
+  {
+   "id": "intent-putback-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:put_back",
+     "confidence": 0.7552,
+     "probabilities": {
+      "A1:put_back": 0.8951,
+      "A1:close": 0.0342,
+      "none": 0.0275,
+      "A1:withdraw": 0.0266,
+      "A1:redirect": 0.0167
+     }
+    }
+   },
+   "ms": 378
+  },
+  {
+   "id": "intent-putback-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:put_back",
+     "confidence": 0.8385,
+     "probabilities": {
+      "A1:put_back": 0.8708,
+      "none": 0.0849,
+      "A1:close": 0.03,
+      "A1:withdraw": 0.0088,
+      "A1:redirect": 0.0055
+     }
+    }
+   },
+   "ms": 236
+  },
+  {
+   "id": "intent-putback-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7339,
+     "probabilities": {
+      "none": 0.7871,
+      "A1:put_back": 0.1587,
+      "A1:withdraw": 0.023,
+      "A1:close": 0.0194,
+      "A1:redirect": 0.0118
+     }
+    }
+   },
+   "ms": 178
+  },
+  {
+   "id": "intent-redirect-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:redirect",
+     "confidence": 0.9214,
+     "probabilities": {
+      "A1:redirect": 0.9326,
+      "A1:done": 0.0289,
+      "none": 0.0084,
+      "A1:accept_later": 0.0082,
+      "A1:reject": 0.0077
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.449,
+     "probabilities": {
+      "none": 0.474,
+      "2026-11-01": 0.0291,
+      "2026-10-24": 0.0282,
+      "2026-11-04": 0.0265,
+      "2026-10-21": 0.0257
+     }
+    }
+   },
+   "ms": 231
+  },
+  {
+   "id": "intent-redirect-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:redirect",
+     "confidence": 0.7404,
+     "probabilities": {
+      "A1:redirect": 0.8802,
+      "none": 0.0355,
+      "A1:done": 0.0236,
+      "A1:accept_later": 0.017,
+      "A1:reject": 0.0162
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.3358,
+     "probabilities": {
+      "none": 0.5985,
+      "2026-11-04": 0.0221,
+      "2026-10-24": 0.0208,
+      "2026-11-01": 0.0208,
+      "2026-10-19": 0.0202
+     }
+    }
+   },
+   "ms": 307
+  },
+  {
+   "id": "intent-redirect-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:reject",
+     "confidence": 0.5175,
+     "probabilities": {
+      "A1:reject": 0.5864,
+      "A1:redirect": 0.2814,
+      "none": 0.1023,
+      "A1:accept_later": 0.0107,
+      "A1:done": 0.0086
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.9045,
+     "probabilities": {
+      "none": 0.9088,
+      "2026-10-19": 0.0057,
+      "2026-11-08": 0.0054,
+      "2026-11-07": 0.0049,
+      "2026-11-06": 0.0048
+     }
+    }
+   },
+   "ms": 176
+  },
+  {
+   "id": "intent-redirect-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:redirect",
+     "confidence": 0.4726,
+     "probabilities": {
+      "A1:redirect": 0.7114,
+      "none": 0.2007,
+      "A1:accept_later": 0.0232,
+      "A1:reject": 0.0202,
+      "A1:accept_now": 0.0152
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4826,
+     "probabilities": {
+      "none": 0.7086,
+      "2026-10-20": 0.0168,
+      "2026-10-21": 0.0157,
+      "2026-10-19": 0.0153,
+      "2026-10-26": 0.0148
+     }
+    }
+   },
+   "ms": 689
+  },
+  {
+   "id": "intent-reject-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:reject",
+     "confidence": 0.9013,
+     "probabilities": {
+      "A1:reject": 0.9154,
+      "none": 0.0331,
+      "A1:accept_later": 0.0224,
+      "A1:redirect": 0.0106,
+      "A1:send_back": 0.007
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.1547,
+     "probabilities": {
+      "none": 0.1931,
+      "2026-11-03": 0.1626,
+      "2026-11-02": 0.1208,
+      "2026-11-01": 0.0699,
+      "2026-11-06": 0.0545
+     }
+    }
+   },
+   "ms": 256
+  },
+  {
+   "id": "intent-reject-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:reject",
+     "confidence": 0.4829,
+     "probabilities": {
+      "A1:reject": 0.7303,
+      "none": 0.1344,
+      "A1:redirect": 0.0618,
+      "A1:send_back": 0.0267,
+      "A1:accept_later": 0.0229
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7585,
+     "probabilities": {
+      "none": 0.8768,
+      "2026-10-30": 0.0072,
+      "2026-11-01": 0.0071,
+      "2026-11-02": 0.0068,
+      "2026-11-06": 0.0068
+     }
+    }
+   },
+   "ms": 741
+  },
+  {
+   "id": "intent-reject-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:reject",
+     "confidence": 0.7756,
+     "probabilities": {
+      "A1:reject": 0.8976,
+      "none": 0.0283,
+      "A1:send_back": 0.0187,
+      "A1:accept_later": 0.0176,
+      "A1:redirect": 0.0144
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.4051,
+     "probabilities": {
+      "none": 0.6529,
+      "2026-10-19": 0.0273,
+      "2026-11-06": 0.0184,
+      "2026-10-30": 0.0177,
+      "2026-11-04": 0.0177
+     }
+    }
+   },
+   "ms": 632
+  },
+  {
+   "id": "intent-sendback-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:send_back",
+     "confidence": 0.8169,
+     "probabilities": {
+      "A1:send_back": 0.9166,
+      "none": 0.0525,
+      "A1:accept_later": 0.0097,
+      "A1:accept_now": 0.0067,
+      "A1:redirect": 0.0057
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.7426,
+     "probabilities": {
+      "none": 0.868,
+      "2026-10-20": 0.0134,
+      "2026-10-21": 0.0094,
+      "2026-10-22": 0.0079,
+      "2026-10-26": 0.0074
+     }
+    }
+   },
+   "ms": 252
+  },
+  {
+   "id": "intent-sendback-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:send_back",
+     "confidence": 0.8941,
+     "probabilities": {
+      "A1:send_back": 0.9092,
+      "none": 0.0412,
+      "A1:accept_later": 0.0145,
+      "A1:redirect": 0.0096,
+      "A1:reject": 0.0093
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.6608,
+     "probabilities": {
+      "none": 0.6762,
+      "2026-10-20": 0.0223,
+      "2026-10-21": 0.0216,
+      "2026-10-26": 0.0184,
+      "2026-11-06": 0.0179
+     }
+    }
+   },
+   "ms": 216
+  },
+  {
+   "id": "intent-sendback-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:send_back",
+     "confidence": 0.7338,
+     "probabilities": {
+      "A1:send_back": 0.8764,
+      "none": 0.0503,
+      "A1:accept_later": 0.0245,
+      "A1:accept_now": 0.017,
+      "A1:redirect": 0.0121
+     }
+    },
+    "deadline": {
+     "type": "choice",
+     "choice": "none",
+     "confidence": 0.441,
+     "probabilities": {
+      "none": 0.6793,
+      "2026-10-20": 0.0195,
+      "2026-10-19": 0.0171,
+      "2026-11-06": 0.0169,
+      "2026-10-26": 0.0165
+     }
+    }
+   },
+   "ms": 822
+  },
+  {
+   "id": "intent-withdraw-001",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:withdraw",
+     "confidence": 0.7934,
+     "probabilities": {
+      "A1:withdraw": 0.8623,
+      "none": 0.1176,
+      "A1:redirect": 0.0201
+     }
+    }
+   },
+   "ms": 188
+  },
+  {
+   "id": "intent-withdraw-002",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:withdraw",
+     "confidence": 0.2904,
+     "probabilities": {
+      "A1:withdraw": 0.5269,
+      "A1:redirect": 0.3073,
+      "none": 0.1658
+     }
+    }
+   },
+   "ms": 212
+  },
+  {
+   "id": "intent-withdraw-003",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:withdraw",
+     "confidence": 0.8304,
+     "probabilities": {
+      "A1:withdraw": 0.9407,
+      "none": 0.0394,
+      "A1:redirect": 0.0198
+     }
+    }
+   },
+   "ms": 239
+  },
+  {
+   "id": "intent-withdraw-004",
+   "family": "intent",
+   "raw": {
+    "action": {
+     "type": "choice",
+     "choice": "A1:withdraw",
+     "confidence": 0.9355,
+     "probabilities": {
+      "A1:withdraw": 0.9836,
+      "none": 0.0164
+     }
+    }
+   },
+   "ms": 239
+  },
+  {
+   "id": "isask-001",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7718
+    }
+   },
+   "ms": 244
+  },
+  {
+   "id": "isask-002",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.9019
+    }
+   },
+   "ms": 279
+  },
+  {
+   "id": "isask-003",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5132
+    }
+   },
+   "ms": 265
+  },
+  {
+   "id": "isask-004",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7432
+    }
+   },
+   "ms": 284
+  },
+  {
+   "id": "isask-005",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7186
+    }
+   },
+   "ms": 216
+  },
+  {
+   "id": "isask-006",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.6792
+    }
+   },
+   "ms": 234
+  },
+  {
+   "id": "isask-007",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.852
+    }
+   },
+   "ms": 319
+  },
+  {
+   "id": "isask-008",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7663
+    }
+   },
+   "ms": 238
+  },
+  {
+   "id": "isask-009",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7851
+    }
+   },
+   "ms": 1689
+  },
+  {
+   "id": "isask-010",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.1176
+    }
+   },
+   "ms": 306
+  },
+  {
+   "id": "isask-011",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7663
+    }
+   },
+   "ms": 199
+  },
+  {
+   "id": "isask-012",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.6926
+    }
+   },
+   "ms": 173
+  },
+  {
+   "id": "isask-013",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.9381
+    }
+   },
+   "ms": 206
+  },
+  {
+   "id": "isask-014",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.78
+    }
+   },
+   "ms": 194
+  },
+  {
+   "id": "isask-015",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5195
+    }
+   },
+   "ms": 169
+  },
+  {
+   "id": "isask-016",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7447
+    }
+   },
+   "ms": 349
+  },
+  {
+   "id": "isask-017",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7607
+    }
+   },
+   "ms": 192
+  },
+  {
+   "id": "isask-018",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.8056
+    }
+   },
+   "ms": 287
+  },
+  {
+   "id": "isask-019",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.8567
+    }
+   },
+   "ms": 496
+  },
+  {
+   "id": "isask-020",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.7469
+    }
+   },
+   "ms": 362
+  },
+  {
+   "id": "isask-021",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.1339
+    }
+   },
+   "ms": 224
+  },
+  {
+   "id": "isask-022",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.0947
+    }
+   },
+   "ms": 216
+  },
+  {
+   "id": "isask-023",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.8093
+    }
+   },
+   "ms": 206
+  },
+  {
+   "id": "isask-024",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.0732
+    }
+   },
+   "ms": 207
+  },
+  {
+   "id": "isask-025",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.9698
+    }
+   },
+   "ms": 417
+  },
+  {
+   "id": "isask-026",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.0396
+    }
+   },
+   "ms": 320
+  },
+  {
+   "id": "isask-027",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.8625
+    }
+   },
+   "ms": 287
+  },
+  {
+   "id": "isask-028",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.4388
+    }
+   },
+   "ms": 203
+  },
+  {
+   "id": "isask-029",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.6838
+    }
+   },
+   "ms": 232
+  },
+  {
+   "id": "isask-030",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.365
+    }
+   },
+   "ms": 189
+  },
+  {
+   "id": "isask-031",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.8749
+    }
+   },
+   "ms": 414
+  },
+  {
+   "id": "isask-032",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5312
+    }
+   },
+   "ms": 465
+  },
+  {
+   "id": "isask-033",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.199
+    }
+   },
+   "ms": 492
+  },
+  {
+   "id": "isask-034",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5663
+    }
+   },
+   "ms": 1338
+  },
+  {
+   "id": "isask-035",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.0078
+    }
+   },
+   "ms": 191
+  },
+  {
+   "id": "isask-036",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.1461
+    }
+   },
+   "ms": 251
+  },
+  {
+   "id": "isask-037",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.972
+    }
+   },
+   "ms": 208
+  },
+  {
+   "id": "isask-038",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5068
+    }
+   },
+   "ms": 371
+  },
+  {
+   "id": "isask-039",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.6379
+    }
+   },
+   "ms": 256
+  },
+  {
+   "id": "isask-040",
+   "family": "is_ask",
+   "raw": {
+    "is_ask": {
+     "type": "noul",
+     "noul": 0.5955
+    }
+   },
+   "ms": 317
+  },
+  {
+   "id": "react-001",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.8575,
+     "probabilities": {
+      "yes": 0.905,
+      "unclear": 0.0658,
+      "no": 0.0292
+     }
+    }
+   },
+   "ms": 189
+  },
+  {
+   "id": "react-002",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.7283,
+     "probabilities": {
+      "yes": 0.9018,
+      "unclear": 0.069,
+      "no": 0.0292
+     }
+    }
+   },
+   "ms": 268
+  },
+  {
+   "id": "react-003",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.7222,
+     "probabilities": {
+      "yes": 0.8997,
+      "unclear": 0.0635,
+      "no": 0.0368
+     }
+    }
+   },
+   "ms": 479
+  },
+  {
+   "id": "react-004",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.8314,
+     "probabilities": {
+      "yes": 0.9411,
+      "unclear": 0.0371,
+      "no": 0.0218
+     }
+    }
+   },
+   "ms": 460
+  },
+  {
+   "id": "react-005",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.7939,
+     "probabilities": {
+      "yes": 0.8626,
+      "unclear": 0.1114,
+      "no": 0.026
+     }
+    }
+   },
+   "ms": 252
+  },
+  {
+   "id": "react-006",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.6742,
+     "probabilities": {
+      "yes": 0.8796,
+      "unclear": 0.0913,
+      "no": 0.0292
+     }
+    }
+   },
+   "ms": 206
+  },
+  {
+   "id": "react-007",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.7293,
+     "probabilities": {
+      "yes": 0.9019,
+      "unclear": 0.074,
+      "no": 0.024
+     }
+    }
+   },
+   "ms": 265
+  },
+  {
+   "id": "react-008",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.3212,
+     "probabilities": {
+      "yes": 0.683,
+      "unclear": 0.2825,
+      "no": 0.0345
+     }
+    }
+   },
+   "ms": 584
+  },
+  {
+   "id": "react-009",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.3387,
+     "probabilities": {
+      "yes": 0.6932,
+      "unclear": 0.279,
+      "no": 0.0278
+     }
+    }
+   },
+   "ms": 528
+  },
+  {
+   "id": "react-010",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.4828,
+     "probabilities": {
+      "yes": 0.6552,
+      "unclear": 0.3193,
+      "no": 0.0254
+     }
+    }
+   },
+   "ms": 319
+  },
+  {
+   "id": "react-011",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.5174,
+     "probabilities": {
+      "no": 0.6783,
+      "unclear": 0.2741,
+      "yes": 0.0476
+     }
+    }
+   },
+   "ms": 264
+  },
+  {
+   "id": "react-012",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.7472,
+     "probabilities": {
+      "no": 0.8315,
+      "unclear": 0.1305,
+      "yes": 0.038
+     }
+    }
+   },
+   "ms": 246
+  },
+  {
+   "id": "react-013",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.5111,
+     "probabilities": {
+      "no": 0.8062,
+      "unclear": 0.1483,
+      "yes": 0.0455
+     }
+    }
+   },
+   "ms": 1817
+  },
+  {
+   "id": "react-014",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.3628,
+     "probabilities": {
+      "no": 0.7176,
+      "unclear": 0.2422,
+      "yes": 0.0402
+     }
+    }
+   },
+   "ms": 305
+  },
+  {
+   "id": "react-015",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.4459,
+     "probabilities": {
+      "no": 0.769,
+      "unclear": 0.1947,
+      "yes": 0.0363
+     }
+    }
+   },
+   "ms": 410
+  },
+  {
+   "id": "react-016",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.5799,
+     "probabilities": {
+      "no": 0.8387,
+      "unclear": 0.1227,
+      "yes": 0.0386
+     }
+    }
+   },
+   "ms": 594
+  },
+  {
+   "id": "react-017",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.3518,
+     "probabilities": {
+      "no": 0.7163,
+      "unclear": 0.2272,
+      "yes": 0.0565
+     }
+    }
+   },
+   "ms": 910
+  },
+  {
+   "id": "react-018",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.584,
+     "probabilities": {
+      "no": 0.7227,
+      "unclear": 0.2292,
+      "yes": 0.048
+     }
+    }
+   },
+   "ms": 194
+  },
+  {
+   "id": "react-019",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.7571,
+     "probabilities": {
+      "no": 0.8381,
+      "unclear": 0.1275,
+      "yes": 0.0343
+     }
+    }
+   },
+   "ms": 189
+  },
+  {
+   "id": "react-020",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "no",
+     "confidence": 0.4985,
+     "probabilities": {
+      "no": 0.7973,
+      "unclear": 0.1698,
+      "yes": 0.0329
+     }
+    }
+   },
+   "ms": 236
+  },
+  {
+   "id": "react-021",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.6499,
+     "probabilities": {
+      "unclear": 0.8706,
+      "yes": 0.0782,
+      "no": 0.0513
+     }
+    }
+   },
+   "ms": 292
+  },
+  {
+   "id": "react-022",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.73,
+     "probabilities": {
+      "unclear": 0.82,
+      "yes": 0.1127,
+      "no": 0.0673
+     }
+    }
+   },
+   "ms": 212
+  },
+  {
+   "id": "react-023",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.5182,
+     "probabilities": {
+      "unclear": 0.8117,
+      "yes": 0.1279,
+      "no": 0.0604
+     }
+    }
+   },
+   "ms": 358
+  },
+  {
+   "id": "react-024",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.7798,
+     "probabilities": {
+      "unclear": 0.8532,
+      "no": 0.0892,
+      "yes": 0.0576
+     }
+    }
+   },
+   "ms": 287
+  },
+  {
+   "id": "react-025",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.699,
+     "probabilities": {
+      "unclear": 0.8906,
+      "yes": 0.064,
+      "no": 0.0454
+     }
+    }
+   },
+   "ms": 263
+  },
+  {
+   "id": "react-026",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.5592,
+     "probabilities": {
+      "unclear": 0.8314,
+      "yes": 0.1024,
+      "no": 0.0661
+     }
+    }
+   },
+   "ms": 273
+  },
+  {
+   "id": "react-027",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.2531,
+     "probabilities": {
+      "yes": 0.5838,
+      "unclear": 0.4012,
+      "no": 0.015
+     }
+    }
+   },
+   "ms": 185
+  },
+  {
+   "id": "react-028",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.3843,
+     "probabilities": {
+      "unclear": 0.7313,
+      "yes": 0.231,
+      "no": 0.0377
+     }
+    }
+   },
+   "ms": 1712
+  },
+  {
+   "id": "react-029",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "yes",
+     "confidence": 0.2323,
+     "probabilities": {
+      "yes": 0.5435,
+      "unclear": 0.4387,
+      "no": 0.0178
+     }
+    }
+   },
+   "ms": 363
+  },
+  {
+   "id": "react-030",
+   "family": "reaction",
+   "raw": {
+    "meaning": {
+     "type": "choice",
+     "choice": "unclear",
+     "confidence": 0.691,
+     "probabilities": {
+      "unclear": 0.8872,
+      "no": 0.0714,
+      "yes": 0.0413
+     }
+    }
+   },
+   "ms": 277
+  }
+ ]
+}

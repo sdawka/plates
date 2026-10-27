@@ -10,13 +10,13 @@ Tara   @plates
 Plates 📋 Dana is asking Bob for 2 things (tagged by Tara)
          1. Send the Q3 numbers · few hours · by Fri
          2. Review the deck · <1 hr
-         [✅ Confirm]  [✏️ Fix it]
+         [✅ Confirm]
 Bob    on it
-Plates ▶️ Bob started "Send the Q3 numbers"  [Undo]
+Plates ✓ @Bob → Send the Q3 numbers: accepted, working on it  [Undo]
 Bob    here it is: https://…/q3.xlsx
-Plates ✅ Delivered to Dana for review  [Undo]
+Plates ✓ @Bob → Send the Q3 numbers: marked done, now with @Dana to close (result)  [Undo]
 Dana   thanks, perfect
-Plates Closed by Dana. Thanks Bob.
+Plates ✓ @Dana → Send the Q3 numbers: closed  [Undo]
 ```
 
 ## What it does

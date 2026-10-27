@@ -35,7 +35,8 @@ The deploy prints the Worker URL, `https://plates.<your-subdomain>.workers.dev`.
 
 1. In `slack-manifest.yaml`, replace every `WORKER_URL` with the Worker URL from step 1 (hostname only, no trailing slash; the paths are already there).
 2. Go to https://api.slack.com/apps, **Create New App**, **From a manifest**, pick the workspace, paste the file, create, then **Install to Workspace**.
-3. Set the three required secrets:
+3. Optional: under **Basic Information → Display Information**, upload `assets/icon.png` as the app icon.
+4. Set the three required secrets:
 
 ```sh
 npx wrangler secret put SLACK_SIGNING_SECRET   # Basic Information -> App Credentials -> Signing Secret
@@ -43,8 +44,8 @@ npx wrangler secret put SLACK_BOT_TOKEN        # OAuth & Permissions -> Bot User
 npx wrangler secret put OPENROUTER_API_KEY     # https://openrouter.ai/settings/keys
 ```
 
-4. In the app's **Event Subscriptions** page, confirm the request URL shows *Verified*. If the app was created before the signing secret was set, re-save the URL.
-5. Invite the bot to a channel and run the [walkthrough](walkthrough.md).
+5. In the app's **Event Subscriptions** page, confirm the request URL shows *Verified*. If the app was created before the signing secret was set, re-save the URL.
+6. Invite the bot to a channel and run the [walkthrough](walkthrough.md).
 
 The manifest asks for `users:read.email` only so that tracker sync can match Slack users to Jira or Linear accounts. Remove it from the manifest if you will not use trackers.
 

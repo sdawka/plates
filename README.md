@@ -1,8 +1,12 @@
+<p align="center"><img src="assets/icon-128.png" width="96" height="96" alt=""></p>
+
 # Plates
 
 **A Slack app that keeps every ask on someone's plate until the person who asked says it's done.**
 
 Tag `@plates` when you ask a colleague for something. It reads the thread, works out who is asking whom for what, posts a confirmation, and then tracks each ask as it moves between the two of you. Nothing is closed until the requester closes it, so asks stop quietly dropping. Self-hosted on Cloudflare Workers, one workspace per install.
+
+<p align="center"><img src="docs/images/capture.png" width="760" alt="Dana asks Bob for two things in a thread; Tara tags @plates; Plates posts a confirmation card naming requester and owner with a Confirm button"></p>
 
 ```
 Dana   @Bob can you send the Q3 numbers by Friday, and review the deck?
@@ -27,6 +31,22 @@ Plates ✓ @Dana → Send the Q3 numbers: closed  [Undo]
 - **Understands plain replies.** "on it", "I'll get to it Thursday", "rejecting this, marketing owns it", "here it is: link" become actions in the thread, applied with an Undo button when the model is sure and offered as "Did you mean…?" when it isn't. Emoji reactions work the same way.
 - **Keeps things visible.** A Home tab per person (needs your response · on your plate · unconfirmed · waiting on others), a daily digest at the time you choose, deadline reminders with a daily cap, snooze counts and round counts that both people can see, and a nudge after the third snooze.
 - **Optional mirrors.** Deliverable asks can become Jira or Linear issues that follow the ask's state. People can connect a user token so `@plates` works in DMs the bot isn't in.
+
+## In Slack
+
+**Reply in plain words.** The owner replies in the thread; Plates applies the move with an Undo button, or asks "Did you mean…?" when it is less sure.
+
+<p align="center"><img src="docs/images/thread.png" width="760" alt="The live request card with a check reaction; Bob writes 'on it, numbers by Thursday' and Plates applies it with an Undo button; a less certain reply becomes a Did you mean question with Yes and No"></p>
+
+**The owner's DM.** Every confirmed request lands in the owner's DM with the few buttons that matter and a menu for the rest.
+
+<p align="center"><img src="docs/images/owner-dm.png" width="760" alt="A DM from Plates listing two asks from Dana, each with Start now, Accept for later and Reject buttons and an overflow menu"></p>
+
+**The Home tab.** Each person's plate: what needs a response, what is on it, what they are waiting on.
+
+<p align="center"><img src="docs/images/home.png" width="760" alt="The Plates Home tab for Bob: a headline with counts, Needs your response, On your plate grouped by requester with buttons, Waiting on others, and a Connect DMs row"></p>
+
+These are rendered from the Block Kit the app really produces, captured by `npm run screenshots` through the test harness.
 
 ## How it works
 

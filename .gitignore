@@ -9,3 +9,6 @@ dist/
 .env
 .env.*
 .secrets.env
+
+# Script bundles from scripts/run.mjs
+scripts/.bundle/

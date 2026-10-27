@@ -23,17 +23,18 @@
     "local:mock": "node scripts/run.mjs scripts/serve-mock.ts",
     "diagram": "node scripts/run.mjs scripts/diagram.ts",
     "eval": "node scripts/run.mjs scripts/eval.ts",
-    "spike:clairic": "node scripts/run.mjs scripts/spike-clairic.ts"
+    "spike:clairic": "node scripts/run.mjs scripts/spike-clairic.ts",
+    "screenshots": "node scripts/run.mjs scripts/screenshots.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
     "slack-cloudflare-workers": "1.3.10"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261019.1",
+    "@cloudflare/workers-types": "5.20261027.1",
     "esbuild": "0.28.2",
     "typescript": "5.9.3",
-    "vitest": "3.2.7",
-    "wrangler": "4.151.1"
+    "vitest": "5.0.5",
+    "wrangler": "4.154.0"
   }
 }

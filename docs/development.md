@@ -30,6 +30,7 @@ Scripts under `scripts/` are TypeScript run through `node scripts/run.mjs <file>
 |---|---|
 | `npm run diagram` | Regenerates `docs/state-machine.md` from `RULES` |
 | `npm run eval` | Decision-model eval, below |
+| `npm run screenshots` | Plays a scenario through the test harness and renders the real Block Kit as Slack-styled PNGs in `docs/images/` for the README. Needs Google Chrome and Python with Pillow |
 | `npm run spike:clairic` | Research spike for Cloudflare's Clairic model; writes `docs/clairic-spike.md`. Needs `CF_ACCOUNT_ID` and `CF_API_TOKEN` (Workers AI run permission). Nothing under `src/` may import `scripts/clairic/` |
 
 ## The decision-model eval

@@ -1,8 +1,8 @@
-# Plates — plan
+# Plates: product spec
 
 A Slack agent you tag when you ask someone for something. It reads the conversation, works out each ask, and puts it on the right person's plate. It tracks each ask as it moves between people until it's done. Snoozed asks stay visible.
 
-**Status (2026-10-21):** Phases 1–3 are built and deployed. Changes since then are in the decisions log.
+This is the spec Plates was built from, kept current through the decisions log at the end. Everything in sections 3 to 7 is built.
 
 ---
 
@@ -50,7 +50,7 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
    - an **urgency** label: `low · normal · high · urgent`. This is only a label; it doesn't change any behaviour.
    - a one-line reason for the size and urgency
 5. **Confirmation** (every time). It posts one message in the thread that **names the requester and the owner it inferred**, and says so when the tagger isn't the requester:
-   > 📋 **@dana** is asking **@bob** for 3 things (tagged by @sahil):
+   > 📋 **@dana** is asking **@bob** for 3 things (tagged by @tara):
    > ☐ Q3 numbers · few hours · high
    > ☐ Ack pricing change · 2–5 min · normal
    > ☐ Intro to Dana · <1 hr · low
@@ -68,7 +68,7 @@ A Slack agent you tag when you ask someone for something. It reads the conversat
    - The owner's ✅ only confirms who's who. The owner still accepts or rejects separately in the next step.
    - **No reaction by the next working day**: the bot reminds the requester and owner once. If it's still unconfirmed after that, the request is marked *discarded*. It stays visible as "unconfirmed" on the requester's, owner's and tagger's Home tabs, where either the requester or the owner can still confirm it. Anyone of the three can **Dismiss** a pending or discarded request instead; that is final, it leaves every Home and the thread card says so.
 
-   When it can't tell who the requester or owner is, it asks a specific question in the confirmation instead of guessing ("Who's asking: @dana or @sahil?").
+   When it can't tell who the requester or owner is, it asks a specific question in the confirmation instead of guessing ("Who's asking: @dana or @tara?").
 6. After confirmation, the **same message is updated in place** for the rest of the request's life:
    > 📋 @dana → @bob · 3 asks
    > ☐ Q3 numbers · few hours · high · *awaiting @bob*

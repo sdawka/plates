@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     if (process.env.CI) throw new Error("refusing to run a paid eval under CI");
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set (try: set -a; source .secrets.env)");
   }
-  const env = { OPENROUTER_API_KEY: apiKey, DECIDE_MODEL: model, DECIDE_API: api, LLM_BASE_URL: baseUrl, PUBLIC_URL: "https://plates.webisoft.workers.dev" } as Env;
+  const env = { OPENROUTER_API_KEY: apiKey, DECIDE_MODEL: model, DECIDE_API: api, LLM_BASE_URL: baseUrl } as Env;
 
   const started = Date.now();
   const records = await runCases(cases, {

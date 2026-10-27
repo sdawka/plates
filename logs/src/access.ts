@@ -3,7 +3,7 @@
 // Fails closed: without ACCESS_TEAM_DOMAIN and ACCESS_AUD nothing is served.
 
 export interface AccessConfig {
-  /** e.g. https://webisoft.cloudflareaccess.com */
+  /** e.g. https://example.cloudflareaccess.com */
   teamDomain?: string;
   /** The application's Audience (AUD) tag. */
   aud?: string;

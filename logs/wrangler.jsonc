@@ -6,15 +6,16 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "preview_urls": false,
+  // No database ids on purpose: wrangler links the databases by name on deploy (creating plates-logs when
+  // the account has none). APP is Plates' own database, read only.
   "d1_databases": [
-    { "binding": "LOGS", "database_name": "plates-logs", "database_id": "2ab721f8-29c7-4428-a1c3-0f7a551f0220", "migrations_dir": "migrations" },
-    { "binding": "APP", "database_name": "plates", "database_id": "c4d60bac-5986-4daa-9da6-85ede934ece0" }
+    { "binding": "LOGS", "database_name": "plates-logs", "migrations_dir": "migrations" },
+    { "binding": "APP", "database_name": "plates" }
   ],
-  "vars": {
-    "RETENTION_DAYS": "14",
-    // From Zero Trust -> Access -> Applications -> this app: the team domain and the Application Audience (AUD) tag.
-    "ACCESS_TEAM_DOMAIN": "https://rapid-credit-d30a.cloudflareaccess.com",
-    "ACCESS_AUD": "560a64bbdbf5f4770366e77a2bed7b9c73ceda8396b69afd74f2ea3d7623b7de"
-  }
-  // Optional secret: SLACK_BOT_TOKEN, to show names instead of Slack ids.
+  "vars": { "RETENTION_DAYS": "14" }
+  // Secrets (`wrangler secret put`, from this directory):
+  //   ACCESS_TEAM_DOMAIN  https://<team>.cloudflareaccess.com   (Zero Trust -> Access -> Applications -> this app)
+  //   ACCESS_AUD          the application's Audience (AUD) tag
+  //   SLACK_BOT_TOKEN     optional, shows names instead of Slack ids
+  // Without the two Access values the Worker serves nothing (403).
 }

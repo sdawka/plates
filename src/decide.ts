@@ -6,7 +6,7 @@
 // One attempt per call. Rate limits and server errors throw a plain Error (the queue retries);
 // anything the same request would fail with again throws LlmPermanentError.
 
-import { LlmPermanentError } from "./llm";
+import { APP_URL, LlmPermanentError } from "./llm";
 import { info } from "./log";
 import type { Env } from "./types";
 
@@ -88,7 +88,7 @@ export async function decide<Qs extends Record<string, Question>>(env: Env, req:
     headers: {
       Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": env.PUBLIC_URL ?? "https://plates.webisoft.workers.dev",
+      "HTTP-Referer": env.PUBLIC_URL ?? APP_URL,
       "X-OpenRouter-Title": "Plates",
     },
     body: JSON.stringify({

@@ -5,12 +5,14 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
-  // Every invocation's logs go to the plates-logs Worker (logs/), which serves them behind Cloudflare Access.
+
+  // Every invocation's logs also go to the plates-logs Tail Worker (logs/), which keeps them 14 days and
+  // serves them behind Cloudflare Access. Deploy it first (docs/self-hosting.md), or delete this line.
   "tail_consumers": [{ "service": "plates-logs" }],
 
-  "d1_databases": [
-    { "binding": "DB", "database_name": "plates", "database_id": "c4d60bac-5986-4daa-9da6-85ede934ece0", "migrations_dir": "migrations" }
-  ],
+  // No database_id on purpose: wrangler (>= 4.45) links the database named here on deploy, creating it
+  // when the account has none, so this file carries nothing specific to one account.
+  "d1_databases": [{ "binding": "DB", "database_name": "plates", "migrations_dir": "migrations" }],
 
   "queues": {
     "producers": [{ "binding": "EXTRACT_QUEUE", "queue": "plates-extract" }],
@@ -22,10 +24,10 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PlateKeeper"] }],
 
+  // Plain vars. Everything else the Worker reads is a secret (`wrangler secret put`): see docs/configuration.md.
   "vars": {
     "EXTRACT_MODEL": "anthropic/claude-sonnet-5.5",
     "FAST_MODEL": "anthropic/claude-haiku-5.5",
     "DECIDE_MODEL": "typesafe/jev-1.14"
   }
-  // Secrets (wrangler secret put): SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, OPENROUTER_API_KEY
 }

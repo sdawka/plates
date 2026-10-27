@@ -1,5 +1,5 @@
 # Paste into https://api.slack.com/apps -> Create New App -> From a manifest.
-# URLs point at the deployed Worker, https://plates.webisoft.workers.dev
+# Replace every WORKER_URL with the deployed Worker URL (e.g. https://plates.<account>.workers.dev) first.
 display_information:
   name: Plates
   description: Puts asks on the right person's plate and keeps them there until they're done.
@@ -29,7 +29,7 @@ features:
       description: Turn this message into tracked asks
   slash_commands:
     - command: /plates
-      url: https://plates.webisoft.workers.dev/slack/events
+      url: https://WORKER_URL/slack/events
       description: Put an ask on someone's plate
       usage_hint: "@bob send the Q3 deck by Friday | settings | help"
       should_escape: true
@@ -57,10 +57,10 @@ oauth_config:
       - im:read
       - mpim:read
   redirect_urls:
-    - https://plates.webisoft.workers.dev/oauth/callback
+    - https://WORKER_URL/oauth/callback
 settings:
   event_subscriptions:
-    request_url: https://plates.webisoft.workers.dev/slack/events
+    request_url: https://WORKER_URL/slack/events
     bot_events:
       - app_mention
       - app_home_opened
@@ -72,7 +72,7 @@ settings:
       - reaction_added
   interactivity:
     is_enabled: true
-    request_url: https://plates.webisoft.workers.dev/slack/events
+    request_url: https://WORKER_URL/slack/events
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false

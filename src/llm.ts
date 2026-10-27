@@ -10,6 +10,9 @@ import { info } from "./log";
 import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "./types";
 
+/** Sent as HTTP-Referer to OpenRouter when PUBLIC_URL is unset (it only labels the traffic). */
+export const APP_URL = "https://github.com/sdawka/plates";
+
 /** Not worth retrying: the model refused, or the output can't fit even with the larger budget. */
 export class LlmPermanentError extends Error {}
 
@@ -33,7 +36,7 @@ export function llmClient(env: Env): Anthropic {
     baseURL: env.LLM_BASE_URL ?? "https://openrouter.ai/api",
     apiKey: null,
     authToken: env.OPENROUTER_API_KEY,
-    defaultHeaders: { "HTTP-Referer": env.PUBLIC_URL ?? "https://plates.webisoft.workers.dev", "X-OpenRouter-Title": "Plates" },
+    defaultHeaders: { "HTTP-Referer": env.PUBLIC_URL ?? APP_URL, "X-OpenRouter-Title": "Plates" },
   });
 }
 

@@ -46,7 +46,7 @@ describe("tail events become rows", () => {
 
 // ---------- Access ----------
 
-const TEAM = "https://webisoft.cloudflareaccess.com";
+const TEAM = "https://example.cloudflareaccess.com";
 const AUD = "aud-123";
 let signKey: CryptoKey;
 let jwk: JsonWebKey & { kid: string };
@@ -56,7 +56,7 @@ const b64url = (b: Uint8Array | string) =>
 
 async function token(claims: Record<string, unknown>, o: { kid?: string; key?: CryptoKey } = {}): Promise<string> {
   const h = b64url(JSON.stringify({ alg: "RS256", kid: o.kid ?? jwk.kid, typ: "JWT" }));
-  const p = b64url(JSON.stringify({ aud: [AUD], iss: TEAM, email: "sahil@webisoft.com", exp: Math.floor(Date.now() / 1000) + 600, ...claims }));
+  const p = b64url(JSON.stringify({ aud: [AUD], iss: TEAM, email: "alice@example.com", exp: Math.floor(Date.now() / 1000) + 600, ...claims }));
   const sig = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", o.key ?? signKey, new TextEncoder().encode(`${h}.${p}`)));
   return `${h}.${p}.${b64url(sig)}`;
 }
@@ -82,7 +82,7 @@ describe("Cloudflare Access", () => {
   const cfg = { teamDomain: TEAM, aud: AUD };
 
   it("accepts a valid token and returns the email", async () => {
-    expect(await verifyAccess(req(await token({})), cfg, certs)).toEqual({ email: "sahil@webisoft.com" });
+    expect(await verifyAccess(req(await token({})), cfg, certs)).toEqual({ email: "alice@example.com" });
   });
 
   it("rejects a missing, expired, wrong-app, wrong-issuer or forged token", async () => {
@@ -134,7 +134,7 @@ describe("pages", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-security-policy")).toContain("default-src 'none'");
     const body = await res.text();
-    expect(body).toContain("sahil@webisoft.com");
+    expect(body).toContain("alice@example.com");
     expect(body.indexOf("queue plates-extract")).toBeLessThan(body.indexOf("slack event message"));
     expect(body).not.toContain("<script>alert(1)</script>");
     expect(body).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");

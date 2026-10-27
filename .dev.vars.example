@@ -1,4 +1,4 @@
-# Every secret and var the Worker reads (src/types.ts Env). Copy to .dev.vars for `wrangler dev`.
+# Every secret and var the Worker reads (src/types.ts Env; explained in docs/configuration.md). Copy to .dev.vars for `wrangler dev`.
 # In production set secrets with `wrangler secret put NAME`; the two model names live in wrangler.jsonc "vars".
 # `npm run local:e2e` does not need this file: it passes its own fake values with --var.
 

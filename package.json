@@ -1,7 +1,17 @@
 {
   "name": "plates",
+  "version": "0.1.0",
+  "description": "Slack app that keeps every ask on someone's plate until the requester closes it. Cloudflare Workers, D1, Queues, Durable Objects.",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sdawka/plates.git"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -21,6 +31,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261019.1",
+    "esbuild": "0.28.2",
     "typescript": "5.9.3",
     "vitest": "3.2.7",
     "wrangler": "4.151.1"
